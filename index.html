@@ -813,6 +813,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
 <script src="quindio-expansion.js"></script>
 <script src="aliadas-datos.js"></script>
 <script src="administradas-c21.js"></script>
+<script src="comercializacion-c21.js"></script>
 <script src="pereira-dosquebradas-datos.js"></script>
 <script src="equipamientos.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -928,7 +929,7 @@ const ARMENIA_DATA={
   EXTRA_REGISTROS:(typeof QUINDIO_REGISTROS!=="undefined")?QUINDIO_REGISTROS:[],
   BASE2019:(typeof BASE2019!=="undefined")?BASE2019:[],
   ADMINISTRADAS:(typeof ADMINISTRADAS_C21!=="undefined")?ADMINISTRADAS_C21.filter(a=>!/pereira|dosquebradas/i.test(a.ciudad||"")):[],
-  COMERCIAL:(typeof COMERCIAL_C21!=="undefined")?COMERCIAL_C21:[],
+  COMERCIAL:(typeof COMERCIAL_C21!=="undefined")?COMERCIAL_C21.filter(c=>!/pereira|dosquebradas/i.test(c.ciudad||"")):[],
   ALIADAS:(typeof ALIADAS_OFERTA!=="undefined")?ALIADAS_OFERTA:[],
   CIUDAD:(typeof CIUDAD!=="undefined")?CIUDAD:null,
   EQUIP:(typeof EQUIP_ARMENIA!=="undefined")?EQUIP_ARMENIA:[]
