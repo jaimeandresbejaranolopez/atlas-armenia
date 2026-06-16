@@ -351,9 +351,13 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
 <header>
   <div class="logo">CENTURY 21<br>DAB</div>
   <div>
-    <h1>Atlas Inmobiliario Vivo — Armenia</h1>
+    <h1 id="cityTitle">Atlas Inmobiliario Vivo — Armenia</h1>
     <div class="sub" id="subline">Captación · Inteligencia de mercado · Avalúos</div>
   </div>
+  <select id="citySel" title="Cambiar de ciudad — el mapa vuela hacia allá" style="align-self:center;background:var(--inbg);color:var(--gold);border:1px solid var(--gold);border-radius:7px;padding:6px 10px;font-size:12.5px;font-weight:700;letter-spacing:.4px;cursor:pointer;margin-left:6px">
+    <option value="armenia">📍 Armenia (Quindío)</option>
+    <option value="amco">📍 Pereira–Dosquebradas (AMCO)</option>
+  </select>
   <div class="actions">
     <button onclick="document.getElementById('guiaOverlay').classList.add('show')" style="border-color:var(--cyan);color:var(--cyan)">📖 Guía</button>
     <button onclick="exportCSV()" class="adminonly">⬇ CSV</button>
@@ -403,7 +407,9 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
     <label>Color:</label>
     <select id="fColor"><option value="capa">Por tipo de registro</option><option value="gestion">Por estado de gestión</option></select>
     <label>Zona:</label>
-    <span class="chip on" data-zona="Norte">Norte</span><span class="chip on" data-zona="Centro">Centro</span><span class="chip on" data-zona="Occidente">Occ.</span><span class="chip on" data-zona="Sur">Sur</span><span class="chip on" data-zona="Quindío">Quindío</span>
+    <span id="zonaChips"></span>
+    <label id="lbMunicipio" style="display:none">Municipio:</label>
+    <select id="fMunicipio" style="display:none"><option value="">Todos</option></select>
     <label>Tipo:</label>
     <select id="fTipo"><option value="">Todos</option></select>
     <label>Estrato:</label>
@@ -415,6 +421,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
     <button class="chip" id="btnUso" style="font-weight:700" title="Pinta los edificios 3D según su uso: vivienda, comercio, oficinas, turismo… (datos OpenStreetMap)">🏙 Uso 3D</button>
     <button class="chip" id="btnGlobos" style="font-weight:700" title="Globos de información sobre los pines (auto: aparecen al acercar)">🎈 Globos: auto</button>
     <button class="chip" id="btnRadio" style="font-weight:700" title="Negocio compartido: clic en el mapa y encuentra inventario C21 + aliadas en un radio">🤝 Radio</button>
+    <button class="chip" id="btnOSM" style="font-weight:700" title="Importa el inventario de conjuntos y edificios de OpenStreetMap para la ciudad activa (capa gris)">⬇ Importar OSM</button>
     <span class="notice" id="fCount"></span>
   </div>
   <div class="mapmain">
@@ -789,6 +796,8 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
 <script src="quindio-expansion.js"></script>
 <script src="aliadas-datos.js"></script>
 <script src="administradas-c21.js"></script>
+<script src="pereira-dosquebradas-datos.js"></script>
+<script src="equipamientos.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
 // ============ BLINDAJE ============
@@ -815,26 +824,26 @@ const osmByName={};OSM_ALL.forEach(o=>{const n=norm(o.nombre);if(n&&!osmByName[n
 const osmUsed=new Set();
 function fixCoords(arr){arr.forEach(d=>{const o=osmByName[norm(d.nombre)];if(o&&okNum(o.lat)){d.lat=o.lat;d.lng=o.lng;d.aprox=false;d.coordOSM=true;osmUsed.add(norm(d.nombre));}});}
 fixCoords(PH_ALL);
-const PLANOS_ALL=(typeof PLANOS!=="undefined")?PLANOS:[];fixCoords(PLANOS_ALL);
-const IND_ALL=(typeof INDEPENDIENTES!=="undefined")?INDEPENDIENTES:[];fixCoords(IND_ALL);
+let PLANOS_ALL=(typeof PLANOS!=="undefined")?PLANOS:[];fixCoords(PLANOS_ALL);
+let IND_ALL=(typeof INDEPENDIENTES!=="undefined")?INDEPENDIENTES:[];fixCoords(IND_ALL);
 // --- v5: OSM documentados (36 fichas investigadas) → suben a capa PH y salen del gris ---
 if(typeof OSM_DOC!=="undefined")OSM_DOC.forEach(o=>{
   const n=norm(o.nombre);osmUsed.add(n);
   const idx=PH_ALL.findIndex(p=>norm(p.nombre)===n);
   if(idx>=0){const p=PH_ALL[idx];Object.keys(o).forEach(k=>{if(p[k]==null&&o[k]!=null)p[k]=o[k];});}
   else{o.id="osmd-"+slug(o.nombre);PH_ALL.push(o);}});
-const OSM_LAYER=OSM_ALL.filter(o=>!osmUsed.has(norm(o.nombre))&&okNum(o.lat)).map((o,i)=>({id:"osm-"+i+"-"+slug(o.nombre),nombre:o.nombre,capa:"osm",categoria:o.categoria,zona:o.zona,pisos:o.pisos,tags:o.tags,lat:o.lat,lng:o.lng,aprox:false}));
-const FSBO_ALL=(typeof FSBO!=="undefined")?FSBO:[];
-const SEC=(typeof SECTORES!=="undefined")?SECTORES:[];
+let OSM_LAYER=OSM_ALL.filter(o=>!osmUsed.has(norm(o.nombre))&&okNum(o.lat)).map((o,i)=>({id:"osm-"+i+"-"+slug(o.nombre),nombre:o.nombre,capa:"osm",categoria:o.categoria,zona:o.zona,pisos:o.pisos,tags:o.tags,lat:o.lat,lng:o.lng,aprox:false}));
+let FSBO_ALL=(typeof FSBO!=="undefined")?FSBO:[];
+let SEC=(typeof SECTORES!=="undefined")?SECTORES:[];
 // --- v5: expansión Quindío (sectores + registros + municipios) ---
-const QMUN=(typeof QUINDIO_MUNICIPIOS!=="undefined")?QUINDIO_MUNICIPIOS:[];
+let QMUN=(typeof QUINDIO_MUNICIPIOS!=="undefined")?QUINDIO_MUNICIPIOS:[];
 if(typeof QUINDIO_SECTORES!=="undefined")QUINDIO_SECTORES.forEach(s=>{if(!SEC.find(x=>x.id===s.id))SEC.push(s);});
 if(typeof QUINDIO_REGISTROS!=="undefined")QUINDIO_REGISTROS.forEach(r=>{
   const dest=r.capa==="planos"?PLANOS_ALL:PH_ALL;
   if(!dest.find(x=>x.id===r.id))dest.push(r);});
-const secById={};SEC.forEach(s=>secById[s.id]=s);
+let secById={};SEC.forEach(s=>secById[s.id]=s);
 // --- v5: base oficial PH 2019 (Alcaldía) — administradores ---
-const ADMINS2019=(typeof BASE2019!=="undefined")?BASE2019:[];
+let ADMINS2019=(typeof BASE2019!=="undefined")?BASE2019:[];
 const admByName={};ADMINS2019.forEach(a=>{const n=norm(a.nombre);if(n&&!admByName[n])admByName[n]=a;});
 let admMatched=0;
 [PH_ALL,IND_ALL,PLANOS_ALL].forEach(arr=>arr.forEach(d=>{const a=admByName[norm(d.nombre)];if(a){d.admin2019=a.admin;a._enMapa=true;admMatched++;}}));
@@ -884,6 +893,156 @@ function normalizarTraza(){
 }
 normalizarTraza();
 
+// ============ REGISTRO DE CIUDADES (multi-ciudad) ============
+const ARMENIA_DATA={
+  key:"armenia", nombre:"Armenia, Quindío", depto:"Quindío", ciudadDefault:"Armenia",
+  center:[-75.69,4.535], zoom:13.3, osm3d:[4.43,-75.82,4.69,-75.55],
+  zonas:["Norte","Centro","Occidente","Sur","Quindío"], municipios:[],
+  PH:(typeof PH!=="undefined")?PH:[],
+  PH_FALTANTES:(typeof PH_FALTANTES!=="undefined")?PH_FALTANTES:[],
+  OSM_INVENTARIO:(typeof OSM_INVENTARIO!=="undefined")?OSM_INVENTARIO:[],
+  OSM_DOC:(typeof OSM_DOC!=="undefined")?OSM_DOC:[],
+  PLANOS:(typeof PLANOS!=="undefined")?PLANOS:[],
+  INDEPENDIENTES:(typeof INDEPENDIENTES!=="undefined")?INDEPENDIENTES:[],
+  FSBO:(typeof FSBO!=="undefined")?FSBO:[],
+  SECTORES:(typeof SECTORES!=="undefined")?SECTORES:[],
+  MUNICIPIOS:(typeof QUINDIO_MUNICIPIOS!=="undefined")?QUINDIO_MUNICIPIOS:[],
+  EXTRA_SECTORES:(typeof QUINDIO_SECTORES!=="undefined")?QUINDIO_SECTORES:[],
+  EXTRA_REGISTROS:(typeof QUINDIO_REGISTROS!=="undefined")?QUINDIO_REGISTROS:[],
+  BASE2019:(typeof BASE2019!=="undefined")?BASE2019:[],
+  ADMINISTRADAS:(typeof ADMINISTRADAS_C21!=="undefined")?ADMINISTRADAS_C21.filter(a=>!/pereira|dosquebradas/i.test(a.ciudad||"")):[],
+  COMERCIAL:(typeof COMERCIAL_C21!=="undefined")?COMERCIAL_C21:[],
+  ALIADAS:(typeof ALIADAS_OFERTA!=="undefined")?ALIADAS_OFERTA:[],
+  CIUDAD:(typeof CIUDAD!=="undefined")?CIUDAD:null,
+  EQUIP:(typeof EQUIP_ARMENIA!=="undefined")?EQUIP_ARMENIA:[]
+};
+const AMCO_DATA=(typeof AMCO!=="undefined")?AMCO:null;
+if(AMCO_DATA&&typeof EQUIP_AMCO!=="undefined")AMCO_DATA.EQUIP=EQUIP_AMCO;
+const CITIES={armenia:ARMENIA_DATA};
+if(AMCO_DATA)CITIES.amco=AMCO_DATA;
+let activeCity="armenia";
+let CITYINTEL=(typeof CIUDAD!=="undefined")?CIUDAD:null;
+let EQUIP_ACT=[];
+function nearestEquip(lat,lng,tipo){
+  if(!okNum(lat)||!okNum(lng)||!EQUIP_ACT||!EQUIP_ACT.length)return null;
+  let best=null,bd=1e12;
+  EQUIP_ACT.forEach(e=>{if(e.tipo!==tipo||!okNum(e.lat))return;const dx=(lat-e.lat)*111320,dy=(lng-e.lng)*111320*Math.cos(lat*Math.PI/180);const d=Math.sqrt(dx*dx+dy*dy);if(d<bd){bd=d;best=e;}});
+  return best?{nombre:best.nombre,tipo:best.tipo,lat:best.lat,lng:best.lng,dist:bd}:null;
+}
+
+function buildCity(D){
+  PH_ALL=(D.PH||[]).slice();
+  (D.PH_FALTANTES||[]).forEach(f=>{
+    if(!f.id)f.id="x-"+slug(f.nombre);
+    const n=norm(f.nombre),idx=PH_ALL.findIndex(p=>norm(p.nombre)===n);
+    if(idx>=0){f.id=PH_ALL[idx].id;PH_ALL[idx]=f;}else PH_ALL.push(f);
+  });
+  const OSM_ALL=(D.OSM_INVENTARIO||[]);
+  const osmByName2={};OSM_ALL.forEach(o=>{const n=norm(o.nombre);if(n&&!osmByName2[n])osmByName2[n]=o;});
+  const osmUsed2=new Set();
+  const fix=arr=>arr.forEach(d=>{const o=osmByName2[norm(d.nombre)];if(o&&okNum(o.lat)){d.lat=o.lat;d.lng=o.lng;d.aprox=false;d.coordOSM=true;osmUsed2.add(norm(d.nombre));}});
+  fix(PH_ALL);
+  PLANOS_ALL=(D.PLANOS||[]).slice();fix(PLANOS_ALL);
+  IND_ALL=(D.INDEPENDIENTES||[]).slice();fix(IND_ALL);
+  (D.OSM_DOC||[]).forEach(o=>{
+    const n=norm(o.nombre);osmUsed2.add(n);
+    const idx=PH_ALL.findIndex(p=>norm(p.nombre)===n);
+    if(idx>=0){const p=PH_ALL[idx];Object.keys(o).forEach(k=>{if(p[k]==null&&o[k]!=null)p[k]=o[k];});}
+    else{o.id="osmd-"+slug(o.nombre);PH_ALL.push(o);}});
+  OSM_LAYER=OSM_ALL.filter(o=>!osmUsed2.has(norm(o.nombre))&&okNum(o.lat)).map((o,i)=>({id:"osm-"+i+"-"+slug(o.nombre),nombre:o.nombre,capa:"osm",categoria:o.categoria,zona:o.zona,municipio:o.municipio,estrato:o.estrato,pisos:o.pisos,tags:o.tags,lat:o.lat,lng:o.lng,aprox:false}));
+  FSBO_ALL=(D.FSBO||[]).slice();
+  SEC=(D.SECTORES||[]).slice();
+  QMUN=(D.MUNICIPIOS||[]);
+  (D.EXTRA_SECTORES||[]).forEach(s=>{if(!SEC.find(x=>x.id===s.id))SEC.push(s);});
+  (D.EXTRA_REGISTROS||[]).forEach(r=>{const dest=r.capa==="planos"?PLANOS_ALL:PH_ALL;if(!dest.find(x=>x.id===r.id))dest.push(r);});
+  secById={};SEC.forEach(s=>secById[s.id]=s);
+  ADMINS2019=(D.BASE2019||[]);
+  const admBy={};ADMINS2019.forEach(a=>{const n=norm(a.nombre);if(n&&!admBy[n])admBy[n]=a;});
+  [PH_ALL,IND_ALL,PLANOS_ALL].forEach(arr=>arr.forEach(d=>{const a=admBy[norm(d.nombre)];if(a){d.admin2019=a.admin;a._enMapa=true;}}));
+  ADMIN_C21=(D.ADMINISTRADAS||[]).slice();
+  COM_C21=(D.COMERCIAL||[]).slice();
+  ALIADAS=(D.ALIADAS||[]).slice();
+  [PH_ALL,PLANOS_ALL,IND_ALL,OSM_LAYER].forEach(arr=>arr.forEach(d=>d.tipoStd=tipoStd(d)));
+  CITYINTEL=D.CIUDAD||null;
+  EQUIP_ACT=D.EQUIP||[];
+  normalizarTraza();
+}
+
+// ============ UI / NAVEGACIÓN POR CIUDAD ============
+function buildZonaChips(){
+  const D=CITIES[activeCity];const cont=document.getElementById("zonaChips");if(!cont)return;
+  zonasOn=new Set(D.zonas||[]);
+  cont.innerHTML=(D.zonas||[]).map(z=>`<span class="chip on" data-zona="${z}">${z}</span>`).join("");
+  cont.querySelectorAll(".chip[data-zona]").forEach(ch=>ch.addEventListener("click",()=>{const z=ch.dataset.zona;if(zonasOn.has(z)){zonasOn.delete(z);ch.classList.remove("on");}else{zonasOn.add(z);ch.classList.add("on");}render();}));
+  const lb=document.getElementById("lbMunicipio"),sel=document.getElementById("fMunicipio");
+  const munis=D.municipios||[];
+  if(lb&&sel){if(munis.length){lb.style.display="";sel.style.display="";sel.innerHTML='<option value="">Todos</option>'+munis.map(m=>`<option>${m}</option>`).join("");}else{lb.style.display="none";sel.style.display="none";sel.value="";}}
+}
+function citySubline(){const D=CITIES[activeCity];return PH_ALL.length+" PH · "+PLANOS_ALL.length+" planos · "+IND_ALL.length+" indep. · "+OSM_LAYER.length+" OSM · "+FSBO_ALL.length+" FSBO · "+ADMINS2019.length+" admins · "+SEC.length+" sectores · "+D.nombre;}
+function initCityUI(){
+  const D=CITIES[activeCity];
+  const tt=document.getElementById("cityTitle");if(tt)tt.textContent="Atlas Inmobiliario Vivo — "+(activeCity==="amco"?"Pereira–Dosquebradas":"Armenia");
+  const sjs=document.getElementById("sjSector");if(sjs)sjs.innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");
+  const acs=document.getElementById("acSector");if(acs)acs.innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");
+  const sjc=document.getElementById("sjCiudad");if(sjc)sjc.value=D.ciudadDefault||"Armenia";
+  const sjd=document.getElementById("sjDepto");if(sjd)sjd.value=D.depto||"Quindío";
+  const cz=document.getElementById("capZona");if(cz)cz.innerHTML='<option value="">Todas las zonas</option>'+(D.zonas||[]).map(z=>`<option>${z}</option>`).join("");
+  safeRun(()=>{const counts={};allItems().forEach(d=>{const t=d.tipoStd||tipoStd(d);counts[t]=(counts[t]||0)+1;});const ft=document.getElementById("fTipo");if(ft){const cur=ft.value;ft.innerHTML='<option value="">Todos</option>'+TIPOS.filter(t=>counts[t]).map(t=>`<option value="${t}">${t} (${counts[t]})</option>`).join("");ft.value=cur;}},"fTipo");
+  buildZonaChips();
+  safeRun(render,"mapa");safeRun(renderFsbo,"fsbo");safeRun(renderZonasTab,"zonas");safeRun(renderAdmins,"admins");
+  const sl=document.getElementById("subline");if(sl)sl.textContent=citySubline();
+}
+let osmImported={};
+function loadCity(key){
+  if(!CITIES[key])return;
+  if(key===activeCity){try{map.flyTo({center:CITIES[key].center,zoom:CITIES[key].zoom,duration:900});}catch(e){}return;}
+  activeCity=key;
+  buildCity(CITIES[key]);
+  const D=CITIES[key];
+  layersOn.osm=!!D.osmDefault;document.querySelectorAll('.lchip[data-l="osm"]').forEach(c=>c.classList.toggle("on",layersOn.osm));
+  try{map.stop();map.flyTo({center:D.center,zoom:D.zoom,pitch:is3D?55:0,bearing:is3D?-12:0,duration:1400});}catch(e){try{map.jumpTo({center:D.center,zoom:D.zoom});}catch(_){}}
+  try{uso3dData=null;uso3dOn=false;const bU=document.getElementById("btnUso");if(bU){bU.classList.remove("on");bU.textContent="🏙 Uso 3D";}if(map.getLayer("c21-uso-3d"))map.removeLayer("c21-uso-3d");}catch(e){}
+  initCityUI();
+  const bO=document.getElementById("btnOSM");if(bO){bO.disabled=false;bO.textContent=OSM_LAYER.length?("⬇ OSM ("+OSM_LAYER.length+")"):"⬇ Importar OSM";}
+  if((D.OSM_INVENTARIO||[]).length===0&&!osmImported[activeCity]){setTimeout(()=>{if(activeCity===key&&!osmImported[key])importOSM();},1500);}
+}
+async function importOSM(){
+  const D=CITIES[activeCity];if(!D)return;
+  const btn=document.getElementById("btnOSM");
+  if(btn){btn.textContent="⬇ Importando…";btn.disabled=true;}
+  try{
+    const bb=(D.osm3d||[4.43,-75.82,4.69,-75.55]).join(",");
+    const q='[out:json][timeout:90];(way["building"~"^(apartments|residential)$"]["name"]('+bb+');way["landuse"="residential"]["name"]('+bb+');relation["landuse"="residential"]["name"]('+bb+'););out tags center;';
+    const r=await fetch("https://overpass-api.de/api/interpreter?data="+encodeURIComponent(q));
+    const j=await r.json();
+    D.OSM_INVENTARIO=D.OSM_INVENTARIO||[];
+    const have=new Set();D.OSM_INVENTARIO.forEach(o=>have.add(norm(o.nombre)));
+    [].concat(PH_ALL,PLANOS_ALL,IND_ALL).forEach(d=>have.add(norm(d.nombre)));
+    let added=0;
+    (j.elements||[]).forEach(el=>{
+      const t=el.tags||{};const nm=t.name;if(!nm)return;
+      const la=el.lat!=null?el.lat:(el.center&&el.center.lat),lo=el.lon!=null?el.lon:(el.center&&el.center.lon);
+      if(!okNum(la)||!okNum(lo))return;
+      const k=norm(nm);if(!k||have.has(k))return;have.add(k);
+      const cat=t.building==="house"?"Casa":(t.landuse==="residential"?"Conjunto/Urbanización":"Edificio");
+      const near=nearestSector({lat:la,lng:lo});
+      const tags=t.building?("building="+t.building):(t.landuse?("landuse="+t.landuse):"");
+      D.OSM_INVENTARIO.push({nombre:nm,categoria:cat,zona:near?near.zona:"",municipio:near?near.municipio:"",pisos:t["building:levels"]?parseInt(t["building:levels"]):null,tags:tags,lat:la,lng:lo});
+      added++;
+    });
+    osmImported[activeCity]=true;
+    buildCity(D);
+    layersOn.osm=true;document.querySelectorAll('.lchip[data-l="osm"]').forEach(cc=>cc.classList.add("on"));
+    render();
+    const sl=document.getElementById("subline");if(sl)sl.textContent=citySubline();
+    if(btn){btn.textContent="⬇ OSM ("+OSM_LAYER.length+")";btn.disabled=false;}
+    if(added===0)console.warn("importOSM: 0 nuevos (ya importado o sin resultados)");
+  }catch(e){
+    if(btn){btn.textContent="⬇ Importar OSM";btn.disabled=false;}
+    console.warn("importOSM:",e);
+  }
+}
+
 // ============ GESTIÓN ============
 const LS_KEY="c21dab_atlas_gestion";let gestion={};
 try{gestion=JSON.parse(localStorage.getItem(LS_KEY)||"{}");const old=JSON.parse(localStorage.getItem("c21dab_captacion_armenia")||"{}");Object.keys(old).forEach(k=>{if(!gestion[k])gestion[k]=old[k];});}catch(e){}
@@ -923,7 +1082,7 @@ const MAP_STYLES={dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/st
 const LS_STYLE="c21dab_mapstyle";
 let mapStyleMode="dark";try{if(localStorage.getItem(LS_STYLE)==="light")mapStyleMode="light";}catch(e){}
 document.body.classList.toggle("light",mapStyleMode==="light");
-const map=new maplibregl.Map({container:"map",style:MAP_STYLES[mapStyleMode],center:[-75.69,4.535],zoom:13.3,pitch:55,bearing:-12,antialias:true,attributionControl:{compact:true,customAttribution:"© OSM © CARTO | Century 21 DAB"}});
+const map=new maplibregl.Map({container:"map",style:MAP_STYLES[mapStyleMode],center:CITIES[activeCity].center,zoom:CITIES[activeCity].zoom,pitch:55,bearing:-12,antialias:true,attributionControl:{compact:true,customAttribution:"© OSM © CARTO | Century 21 DAB"}});
 map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),"top-right");
 function add3DBuildings(){
   try{
@@ -996,7 +1155,7 @@ async function toggleUso3D(){
     if(uso3dCargando)return;
     uso3dCargando=true;btn.textContent="🏙 Cargando…";
     try{
-      const q='[out:json][timeout:90];way["building"~"^(apartments|residential|dormitory|terrace|commercial|retail|supermarket|mall|office|hotel|hostel|industrial|warehouse|school|university|college|hospital|church|chapel|civic|public|government)$"](4.43,-75.82,4.69,-75.55);out tags geom;';
+      const bb=(CITIES[activeCity].osm3d||[4.43,-75.82,4.69,-75.55]).join(",");const q='[out:json][timeout:90];way["building"~"^(apartments|residential|dormitory|terrace|commercial|retail|supermarket|mall|office|hotel|hostel|industrial|warehouse|school|university|college|hospital|church|chapel|civic|public|government)$"]('+bb+');out tags geom;';
       const r=await fetch("https://overpass-api.de/api/interpreter?data="+encodeURIComponent(q));
       const j=await r.json();
       uso3dData={type:"FeatureCollection",features:(j.elements||[]).filter(w=>w.geometry&&w.geometry.length>3).map(w=>{
@@ -1012,7 +1171,7 @@ document.getElementById("btnUso").addEventListener("click",toggleUso3D);
 map.on("style.load",()=>{if(uso3dOn)setTimeout(addUsoLayer,300);});
 let markers={},zoneMarkers=[];
 const layersOn={ph:true,planos:true,ind:true,fsbo:true,osm:false,adm:true,com:true,ali:true,zonas:false};
-const zonasOn=new Set(["Norte","Centro","Occidente","Sur","Quindío"]);
+let zonasOn=new Set((CITIES[activeCity]&&CITIES[activeCity].zonas)||["Norte","Centro","Occidente","Sur","Quindío"]);
 function allItems(){const out=[];
   PH_ALL.forEach(d=>out.push(Object.assign({capa:"ph"},d)));
   PLANOS_ALL.forEach(d=>out.push(Object.assign({capa:"planos"},d)));
@@ -1025,6 +1184,7 @@ function allItems(){const out=[];
 function radiusFor(d){if(d.capa==="osm")return 4;if(d.capa==="adm"||d.capa==="com"||d.capa==="ali")return 6;if(!d.unidades)return 6.5;return Math.max(6.5,Math.min(25,4+Math.sqrt(d.unidades)*0.55));}
 function passFilter(d){if(!layersOn[d.capa])return false;
   if(d.zona&&!zonasOn.has(d.zona))return false;
+  {const _mun=document.getElementById("fMunicipio");if(_mun&&_mun.value&&(d.municipio||"")!==_mun.value)return false;}
   const tp=document.getElementById("fTipo").value;
   if(tp&&(d.tipoStd||tipoStd(d))!==tp)return false;
   const e=document.getElementById("fEstrato").value;
@@ -1293,13 +1453,13 @@ function renderContactos(){document.getElementById("ctcBody").innerHTML=CTC.map(
   document.querySelectorAll("[data-ali]").forEach(t=>t.addEventListener("change",()=>{ctcNotas["ali:"+t.dataset.ali]=t.value;try{localStorage.setItem(LS_CTC,JSON.stringify(ctcNotas));}catch(e){}}));}
 
 // ============ ZONAS TAB ============
-function renderZonasTab(){const C=(typeof CIUDAD!=="undefined")?CIUDAD:null;
+function renderZonasTab(){const C=CITYINTEL;
   if(C)document.getElementById("ciudadbox").innerHTML=`
     <div class="cb"><div class="v">${fmtP(C.valor_m2_mediano_usado)}</div><div class="l">m² mediano usado</div></div>
-    <div class="cb"><div class="v">${fmtP(C.valor_m2_nueva_aptos)}</div><div class="l">m² apto nuevo (+${C.crecimiento_aptos_pct}%)</div></div>
-    <div class="cb"><div class="v">${C.ventas_12m_unidades.toLocaleString("es-CO")}</div><div class="l">Ventas 12m (+${C.ventas_var_pct}%)</div></div>
+    <div class="cb"><div class="v">${fmtP(C.valor_m2_nueva_aptos)}</div><div class="l">m² apto nuevo (${C.crecimiento_aptos_pct>=0?"+":""}${C.crecimiento_aptos_pct}%)</div></div>
+    <div class="cb"><div class="v">${C.ventas_12m_unidades.toLocaleString("es-CO")}</div><div class="l">Ventas 12m (${C.ventas_var_pct>=0?"+":""}${C.ventas_var_pct}%)</div></div>
     <div class="cb"><div class="v">${C.vis_participacion_pct}%</div><div class="l">Participación VIS</div></div>
-    <div class="cb"><div class="v">${C.iniciaciones.toLocaleString("es-CO")}</div><div class="l">Iniciaciones (+${C.iniciaciones_var_pct}%)</div></div>
+    <div class="cb"><div class="v">${C.iniciaciones.toLocaleString("es-CO")}</div><div class="l">Iniciaciones (${C.iniciaciones_var_pct>=0?"+":""}${C.iniciaciones_var_pct}%)</div></div>
     <div style="flex-basis:100%;font-size:11px;color:#cfcabb;margin-top:4px">${C.nota}</div>`;
   document.getElementById("zcards").innerHTML=SEC.map(s=>`<div class="zcard">
     <h3>${s.nombre}</h3><span class="tagz">${s.zona} · Estrato ${s.estrato} · Demanda ${s.demanda}</span>
@@ -1559,7 +1719,7 @@ function buscarComparables(){const s=getSujeto();
     ["Ciencuadras",`https://www.ciencuadras.com/venta/armenia`],
     ["Properati",`https://www.properati.com.co/s/armenia-quindio1/${s.tipo==="Casa"?"casa":"apartamento"}/venta`]];
   const sec=secById[s.sector];
-  const gmaps=sec&&okNum(sec.lat)?`<a href="https://www.google.com/maps/search/${encodeURIComponent((s.tipo||"apartamento")+" venta "+sec.nombre+" Armenia")}/@${sec.lat},${sec.lng},15z" target="_blank" style="color:var(--blue)">📍 Google Maps (zona ${sec.nombre})</a>`:"";
+  const gmaps=sec&&okNum(sec.lat)?`<a href="https://www.google.com/maps/search/${encodeURIComponent((s.tipo||"apartamento")+" venta "+sec.nombre+" "+((CITIES[activeCity]&&CITIES[activeCity].ciudadDefault)||"Armenia"))}/@${sec.lat},${sec.lng},15z" target="_blank" style="color:var(--blue)">📍 Google Maps (zona ${sec.nombre})</a>`:"";
   document.getElementById("portalLinks").innerHTML=`<b>Comparables de portales — ${s.tipo}${s.area?" ~"+s.area+" m²":""}${sec?" en "+sec.nombre:""}:</b><br>`+links.map(l=>`<a href="${l[1]}" target="_blank" style="color:var(--blue)">🌐 ${l[0]}</a>`).join(" · ")+(gmaps?" · "+gmaps:"");}
 // v5.9: ANÁLISIS PREMIUM C21 — toda la inteligencia transaccional del sector de un predio
 let TX_ALL=[]; // transacciones reales (atlas_transacciones), se cargan en supaLoad
@@ -1665,7 +1825,7 @@ function cerrarUbicador(asignar){
     const sc=document.getElementById("sjSector");
     let best=null,bd=1e9;SEC.forEach(s=>{if(okNum(s.lat)){const d=distM(sjLat,sjLng,s.lat,s.lng);if(d<bd){bd=d;best=s;}}});
     document.getElementById("sjCoordMsg").innerHTML=`✓ Predio ubicado · <a href="https://www.google.com/maps?q=${sjLat},${sjLng}" target="_blank" style="color:var(--blue)">ver en Google Maps</a>${best?` · sector más cercano: <b>${best.nombre}</b> (${Math.round(bd)} m)`:""}`;
-    if(best&&!sc.value)sc.value=best.id;}
+    if(best)sc.value=best.id;}
   document.getElementById("ubicaOverlay").style.display="none";}
 // v5.7: comparables AUTOMÁTICOS por ubicación + características (inventario vivo del Atlas) — BÚSQUEDA EN CASCADA
 function tipoFamilia(t,extra){t=((t||"")+" "+(extra||"")).toLowerCase();
@@ -1799,13 +1959,18 @@ function mapaUbicacionHTML(lat,lng,z){
 // --- narrativa de la zona ---
 function descZonaTexto(sec,s){
   if(!sec)return"";const p=[];
-  p.push(`El inmueble se localiza en el sector <b>${sec.nombre}</b>${sec.zona?`, zona ${sec.zona} de Armenia (Quindío)`:""}, estrato ${sec.estrato||s.estrato||"—"}.`);
+  p.push(`El inmueble se localiza en el sector <b>${sec.nombre}</b>${sec.zona?`, zona ${sec.zona} de ${(CITIES[activeCity]&&CITIES[activeCity].ciudadDefault)||"Armenia"} (${(CITIES[activeCity]&&CITIES[activeCity].depto)||"Quindío"})`:""}, estrato ${sec.estrato||s.estrato||"—"}.`);
   if(sec.perfil)p.push(sec.perfil+".");
   if((sec.equipamientos||[]).length)p.push(`Entre los equipamientos del entorno se encuentran ${sec.equipamientos.join(", ")}.`);
   if((sec.vias||[]).length)p.push(`Las principales vías de acceso son ${sec.vias.join(", ")}.`);
   if(sec.demanda)p.push(`La demanda del sector es ${String(sec.demanda).toLowerCase()}${typeof domTxt==="function"?`, con un tiempo medio en el mercado de ${domTxt(sec.id)}`:""}.`);
   if(sec.valorizacion)p.push(`Perspectiva de valorización: ${sec.valorizacion}.`);
   p.push(`La banda de valor de referencia del sector se sitúa entre ${fmtP(sec.m2_min)} y ${fmtP(sec.m2_max)} por m² de área privada.`);
+  const _pt=(s&&okNum(s.lat))?[s.lat,s.lng]:[sec.lat,sec.lng];
+  if(okNum(_pt[0])&&typeof nearestEquip==="function"){
+    const _eq=[["centro comercial","CC"],["hospital o clínica","Hospital"],["institución universitaria","Universidad"],["institución educativa","Colegio"]].map(function(z){var e=nearestEquip(_pt[0],_pt[1],z[1]);return e?("el "+z[0]+" más cercano es <b>"+e.nombre+"</b> (~"+Math.round(e.dist)+" m)"):null;}).filter(Boolean);
+    if(_eq.length)p.push("En el entorno inmediato del predio, "+_eq.join("; ")+".");
+  }
   return p.join(" ");
 }
 
@@ -2223,7 +2388,7 @@ function fichaComercial(sid){const s=secById[sid];if(!s)return;
   document.getElementById("printArea").innerHTML=`
   <div style="text-align:center;border-bottom:3px solid #BEAF87;padding-bottom:8px;margin-bottom:10px">
     <h1>CENTURY 21 DAB — FICHA COMERCIAL DE ZONA</h1>
-    <div>${s.nombre} · Armenia/Quindío · ${hoy}</div>
+    <div>${s.nombre} · ${s.municipio||(CITIES[activeCity]&&CITIES[activeCity].ciudadDefault)||"Armenia"}/${(CITIES[activeCity]&&CITIES[activeCity].depto)||"Quindío"} · ${hoy}</div>
     <div style="font-size:10px">Carrera 14 A # 10 AN-62 Santa Mónica, Armenia · +57 (6) 746 51 51 · WWW.CENTURY21DAB.COM</div></div>
   <h2>1. Mercado inmobiliario</h2>
   <table><tr><th>Valor m² venta</th><td>${fmtP(s.m2_min)} – ${fmtP(s.m2_max)}</td><th>Arriendo</th><td>${s.arriendo||"—"}</td></tr>
@@ -2330,7 +2495,7 @@ document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>show
 document.querySelectorAll(".lchip").forEach(ch=>ch.addEventListener("click",()=>{const l=ch.dataset.l;layersOn[l]=!layersOn[l];ch.classList.toggle("on",layersOn[l]);render();}));
 document.querySelectorAll(".chip[data-zona]").forEach(ch=>ch.addEventListener("click",()=>{const z=ch.dataset.zona;
   if(zonasOn.has(z)){zonasOn.delete(z);ch.classList.remove("on");}else{zonasOn.add(z);ch.classList.add("on");}render();}));
-["fEstrato","fMin","fSearch","fColor"].forEach(fid=>document.getElementById(fid).addEventListener("input",render));
+["fEstrato","fMin","fSearch","fColor","fMunicipio"].forEach(fid=>document.getElementById(fid).addEventListener("input",render));
 ["ffOp","ffSem","ffTipo"].forEach(fid=>document.getElementById(fid).addEventListener("input",renderFsbo));
 function csvCell(v){return '"'+String(v??"").replace(/"/g,'""').replace(/\n/g," ")+'"';}
 function exportCSV(){
@@ -2380,22 +2545,54 @@ safeRun(()=>{agForm(null);renderAgentes();
 safeRun(()=>{const sel=document.getElementById("capAgente");if(sel)sel.innerHTML='<option value="">Todos los agentes</option>'+AGENTES.map(a=>`<option value="${a.id}">${a.nombre}</option>`).join("");},"filtro captaciones");
 safeRun(()=>{document.getElementById("subline").textContent=`${PH_ALL.length} PH · ${PLANOS_ALL.length} sobre planos · ${IND_ALL.length} independientes · ${OSM_LAYER.length} OSM · ${FSBO_ALL.length} FSBO · ${ADMINS2019.length} admins 2019 · ${SEC.length} sectores · v5 Quindío`;},"subline");
 
+safeRun(()=>{buildZonaChips();const cs=document.getElementById("citySel");if(cs){cs.value=activeCity;cs.addEventListener("change",e=>{try{localStorage.setItem("c21dab_city",e.target.value);}catch(_){}loadCity(e.target.value);});}const bo=document.getElementById("btnOSM");if(bo)bo.addEventListener("click",importOSM);let _sv=null;try{_sv=localStorage.getItem("c21dab_city");}catch(_){}if(_sv&&_sv!==activeCity&&CITIES[_sv]){if(cs)cs.value=_sv;loadCity(_sv);}},"multi-ciudad UI");
 // ============ MODO EQUIPO — SUPABASE (sincronización C21 DAB) ============
 const SUPA_CFG_KEY="c21dab_supa_cfg";
 let supa=null,supaCfg=null,supaAgente="";
 try{supaCfg=JSON.parse(localStorage.getItem(SUPA_CFG_KEY)||"null");}catch(e){}
 function supaConfigUI(){
-  const url=prompt("URL del proyecto Supabase (https://xxxx.supabase.co)\n(Vacío = desconectar y trabajar en modo local):",(supaCfg&&supaCfg.url)||"");
-  if(url===null)return;
-  if(!url.trim()){if(supa&&supa.auth)try{supa.auth.signOut();}catch(e){}localStorage.removeItem(SUPA_CFG_KEY);alert("Modo local activado.");location.reload();return;}
-  const key=prompt("anon key (Supabase → Settings → API → anon public):",(supaCfg&&supaCfg.key)||"");
-  if(key===null||!key.trim())return alert("Falta la anon key. No se conectó.");
-  const lg=prompt("¿Exigir LOGIN de agente (email + contraseña de Supabase Auth)? s/n\n(n = modo simple con solo nombre)","n");
-  let ag="";
-  if((lg||"").toLowerCase().startsWith("s")){ag="";}
-  else{ag=prompt("Tu nombre (así quedará firmada tu gestión):",(supaCfg&&supaCfg.agente)||"")||"agente";}
-  localStorage.setItem(SUPA_CFG_KEY,JSON.stringify({url:url.trim().replace(/\/+$/,""),key:key.trim(),agente:ag.trim(),login:(lg||"").toLowerCase().startsWith("s")}));
-  location.reload();}
+  let ov=document.getElementById("supaCfgOv");if(ov)ov.remove();
+  const cur=supaCfg||{};
+  ov=document.createElement("div");ov.id="supaCfgOv";
+  ov.style.cssText="position:fixed;inset:0;z-index:6000;background:rgba(6,9,18,.92);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center";
+  ov.innerHTML=`<div style="background:#121828;border:1px solid #BEAF87;border-radius:12px;max-width:470px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.6);color:#e8e6df;font-family:inherit">
+    <div style="background:linear-gradient(120deg,#0a0e1a,#121828);padding:13px 16px;border-bottom:2px solid #BEAF87;border-radius:12px 12px 0 0">
+      <b style="font-size:15px;letter-spacing:.6px">☁ Conectar equipo — Supabase</b>
+      <div style="font-size:10.5px;color:#BEAF87;margin-top:2px">Pega cada dato en su campo — no tienes que memorizar nada</div></div>
+    <div style="padding:14px 16px">
+      <label style="font-size:10.5px;color:#9aa3b5;text-transform:uppercase">URL del proyecto</label>
+      <input id="scfgUrl" style="width:100%;padding:8px;margin:3px 0 10px;border:1px solid #2a3450;border-radius:6px;background:#0e1526;color:#e8e6df;font-size:12px" value="${(cur.url||'https://zqzceoksjouttxuryvfi.supabase.co').replace(/"/g,'&quot;')}">
+      <label style="font-size:10.5px;color:#9aa3b5;text-transform:uppercase">anon key (public)</label>
+      <textarea id="scfgKey" placeholder="Pega aquí el anon key (empieza por eyJ...)" style="width:100%;min-height:70px;padding:8px;margin:3px 0 10px;border:1px solid #2a3450;border-radius:6px;background:#0e1526;color:#e8e6df;font-size:11px;resize:vertical;font-family:monospace">${cur.key||''}</textarea>
+      <label style="font-size:10.5px;color:#9aa3b5;text-transform:uppercase">Tu nombre</label>
+      <input id="scfgName" placeholder="Ej: Jaime" style="width:100%;padding:8px;margin:3px 0 10px;border:1px solid #2a3450;border-radius:6px;background:#0e1526;color:#e8e6df;font-size:12px" value="${(cur.agente||'').replace(/"/g,'&quot;')}">
+      <label style="font-size:11px;display:flex;align-items:center;gap:7px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="scfgLogin" ${cur.login?'checked':''}> Exigir login por agente (email + contraseña)</label>
+      <div id="scfgMsg" style="font-size:10.5px;color:#ff6f5e;min-height:14px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <button onclick="supaCfgSave()" style="flex:1;background:#BEAF87;color:#0a0e1a;font-weight:700;border:none;border-radius:7px;padding:9px;cursor:pointer;font-size:12.5px">✓ Conectar</button>
+        <button onclick="document.getElementById('supaCfgOv').remove()" style="background:transparent;border:1px solid #555;color:#ccc;border-radius:7px;padding:9px 12px;cursor:pointer">Cancelar</button>
+        <button onclick="supaCfgDisconnect()" style="background:transparent;border:1px solid #ff6f5e;color:#ff6f5e;border-radius:7px;padding:9px 12px;cursor:pointer">Modo local</button>
+      </div>
+      <div style="font-size:9.5px;color:#9aa3b5;margin-top:9px">La URL ya viene puesta. Solo pega el <b>anon key</b> (Supabase → Settings → API → anon public), escribe tu nombre y pulsa Conectar.</div>
+    </div></div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>{const k=document.getElementById("scfgKey");if(k)k.focus();},120);
+}
+function supaCfgSave(){
+  const url=(document.getElementById("scfgUrl").value||"").trim().replace(/\/+$/,"");
+  const key=(document.getElementById("scfgKey").value||"").trim().replace(/\s+/g,"");
+  const name=(document.getElementById("scfgName").value||"").trim()||"agente";
+  const login=document.getElementById("scfgLogin").checked;
+  const msg=document.getElementById("scfgMsg");
+  if(!/^https:\/\/.+\.supabase\.co$/.test(url)){msg.textContent="La URL debe verse como https://xxxx.supabase.co";return;}
+  if(key.length<40){msg.textContent="El anon key parece incompleto (pega el texto largo que empieza por eyJ...).";return;}
+  localStorage.setItem(SUPA_CFG_KEY,JSON.stringify({url,key,agente:name,login}));
+  location.reload();
+}
+function supaCfgDisconnect(){
+  if(supa&&supa.auth)try{supa.auth.signOut();}catch(e){}
+  localStorage.removeItem(SUPA_CFG_KEY);
+  alert("Modo local activado.");location.reload();}
 // v5: login Supabase Auth
 async function doLogin(){
   const em=document.getElementById("lgEmail").value.trim(),pw=document.getElementById("lgPass").value;
@@ -2476,6 +2673,7 @@ async function supaLoad(){
       okParts.push(sn.data.length+" snapshots");}
   }catch(e){console.warn("snapshots:",e);}
   if(g.error&&red.error){const b=document.getElementById("errbar");b.style.display="block";b.textContent="☁ Conectó a Supabase pero las tablas no existen aún: ejecuta atlas-supabase-schema.sql y atlas-supabase-seed.sql en el SQL Editor.";return;}
+  if(activeCity!=="armenia"){try{buildCity(CITIES[activeCity]);}catch(e){}}
   render();renderFsbo();renderContactos();renderSavedAv();
   const btn=document.getElementById("btnSupa");if(btn){btn.textContent="☁ "+supaAgente;btn.style.background="var(--gold)";btn.style.color="var(--dark)";}
   document.getElementById("subline").textContent+=" · ☁ Equipo sincronizado ("+okParts.join(", ")+")";}
