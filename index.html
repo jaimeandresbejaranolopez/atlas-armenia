@@ -939,6 +939,7 @@ if(AMCO_DATA&&typeof EQUIP_AMCO!=="undefined")AMCO_DATA.EQUIP=EQUIP_AMCO;
 const CITIES={armenia:ARMENIA_DATA};
 if(AMCO_DATA)CITIES.amco=AMCO_DATA;
 let activeCity="armenia";
+try{const _Dc=CITIES[activeCity];if(_Dc){if(_Dc.COMERCIAL)COM_C21=_Dc.COMERCIAL.slice();if(_Dc.ADMINISTRADAS)ADMIN_C21=_Dc.ADMINISTRADAS.slice();if(_Dc.ALIADAS)ALIADAS=_Dc.ALIADAS.slice();}}catch(_){}
 let CITYINTEL=(typeof CIUDAD!=="undefined")?CIUDAD:null;
 let EQUIP_ACT=[];
 function nearestEquip(lat,lng,tipo){
