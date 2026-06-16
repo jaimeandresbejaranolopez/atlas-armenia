@@ -383,6 +383,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
   <div class="tab" data-v="vacm">⚡ ACM 1 clic (captar)</div>
   <div class="tab" data-v="vaval">🧮 Avalúo certificado JAB</div>
   <div class="tab" data-v="vfsbo">🚨 Radar FSBO</div>
+  <div class="tab" data-v="vbuscar">🔎 Buscar p/ cliente</div>
   <div class="tab" data-v="vcontactos">📇 Constructoras</div>
   <div class="tab" data-v="vadmins">📒 Admins PH</div>
   <div class="tab" data-v="vcaptaciones">📈 Captaciones</div>
@@ -576,6 +577,22 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
 </div>
 
 <!-- ================= CONTACTOS ================= -->
+<div class="view" id="vbuscar">
+  <div class="tablewrap">
+    <div class="notice"><b>🔎 Buscar para un cliente</b> — define lo que pide y el Atlas cruza al instante el inventario propio (Comercialización + Administradas C21), el de inmobiliarias aliadas y los FSBO de dueño directo. Ej.: "casa en el centro, hasta $200M, 3 habitaciones".</div>
+    <div class="filters" style="background:rgba(13,19,34,.5)">
+      <label>Operación</label><select id="bcOp"><option value="">Venta y Renta</option><option>Venta</option><option>Renta</option></select>
+      <label>Tipo</label><select id="bcTipo"><option value="">Cualquiera</option></select>
+      <label>Sector</label><select id="bcSector"><option value="">Cualquier sector</option></select>
+      <label>Presupuesto máx $</label><input id="bcPres" type="number" placeholder="200000000" style="width:125px">
+      <label>Hab. mín</label><input id="bcHab" type="number" value="0" min="0" style="width:55px">
+      <label>Estrato</label><select id="bcEstrato"><option value="">Todos</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
+      <button class="btnGold" onclick="buscarCliente()">🔎 Buscar inventario</button>
+    </div>
+    <div id="bcKpis" class="statsbar" style="padding:8px 0;background:none"></div>
+    <div id="bcResultados" style="overflow-x:auto"><div class="notice">Define los criterios y pulsa «Buscar inventario». Los resultados salen del más barato al más caro, con valor, contacto y enlace al aviso.</div></div>
+  </div>
+</div>
 <div class="view" id="vcontactos">
   <div class="tablewrap">
     <div class="notice">Contactos comerciales públicos (webs oficiales y portales, jun-2026). Cada contacto está clasificado por nivel (🏷 comercial/sala de ventas vs. gerencia). Los datos públicos de las webs son comerciales; en <b>"Mi red — gerencia"</b> registra tus contactos directos de gerentes (nombre, cargo, celular) — quedan guardados en este navegador y se incluyen en el backup.</div>
@@ -1329,6 +1346,32 @@ function bindGestion(id){["gAsig","gEstado","gPrio","gAdmin","gTel","gFecha","gN
   el.addEventListener("change",()=>{const ga=document.getElementById("gAsig");
     gestion[id]={estado:document.getElementById("gEstado").value,prioridad:document.getElementById("gPrio").value,admin:document.getElementById("gAdmin").value,tel:document.getElementById("gTel").value,fecha:document.getElementById("gFecha").value,notas:document.getElementById("gNotas").value,asig:ga?ga.value:(gFor(id).asig||"")};
     saveG();supaPushGestion(id);render();const s=document.getElementById("savedMsg");if(s){s.style.opacity=1;setTimeout(()=>s.style.opacity=0,1400);}});});}
+// ============ BUSCADOR PARA CLIENTES (inventario propio + aliadas + FSBO) ============
+function initBuscador(){
+  const t=document.getElementById("bcTipo");if(t&&t.options.length<=1)t.innerHTML='<option value="">Cualquiera</option>'+TIPOS.filter(x=>x!=="Sin clasificar").map(x=>`<option>${x}</option>`).join("");
+  const s=document.getElementById("bcSector");if(s)s.innerHTML='<option value="">Cualquier sector</option>'+SEC.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
+}
+function buscarCliente(){
+  const op=val("bcOp"),tipo=val("bcTipo"),sid=val("bcSector"),pres=parseFloat(val("bcPres"))||0,habMin=parseInt(val("bcHab"))||0,estr=val("bcEstrato");
+  const sec=sid?secById[sid]:null,fam=tipo?tipoFamilia(tipo):null;
+  const pool=[];
+  capaExtra(COM_C21,"com","com").forEach(d=>pool.push({d,fuente:"🏠 C21 Comercialización",contacto:d.contacto||"Oficina C21 DAB",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
+  capaExtra(ADMIN_C21,"adm","adm").forEach(d=>pool.push({d,fuente:"🔑 C21 Administrada",contacto:d.contacto||"Oficina C21 DAB",valor:d.canon?d.canon*200:null,op:"Renta",url:d.url}));
+  capaExtra(ALIADAS,"ali","ali").forEach(d=>pool.push({d,fuente:"🤝 Aliada: "+(d.inmobiliaria||"?"),contacto:d.contacto||d.inmobiliaria||"",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
+  (FSBO_ALL||[]).forEach(f=>pool.push({d:f,fuente:"🚨 FSBO dueño directo",contacto:f.portal||"",valor:f.precio||null,op:f.op==="Arriendo"?"Renta":"Venta",url:f.url}));
+  const res=pool.filter(x=>{
+    if(op&&x.op!==op)return false;
+    if(fam&&!famCompatible(tipoFamilia(x.d.tipo,x.d.tipoStd||x.d.categoria||x.d.nombre),fam))return false;
+    if(habMin&&(parseInt(x.d.hab)||0)<habMin)return false;
+    if(estr&&String(x.d.estrato||"").indexOf(estr)<0)return false;
+    if(sec){if(okNum(x.d.lat)){if(distM(x.d.lat,x.d.lng,sec.lat,sec.lng)>(sec.radio||1000)*2.5)return false;}else if((x.d.zona||"")!==sec.zona)return false;}
+    if(pres&&x.valor&&x.valor>pres)return false;
+    return true;
+  }).sort((a,b)=>(a.valor||9e15)-(b.valor||9e15));
+  const c21=res.filter(x=>/C21/.test(x.fuente)).length,ali=res.filter(x=>/Aliada/.test(x.fuente)).length,fsbo=res.filter(x=>/FSBO/.test(x.fuente)).length;
+  document.getElementById("bcKpis").innerHTML=[["Resultados",res.length],["C21 propio",c21],["Aliadas",ali],["FSBO",fsbo]].map(k=>`<div class="stat"><div class="v">${k[1]}</div><div class="l">${k[0]}</div></div>`).join("");
+  document.getElementById("bcResultados").innerHTML=res.length?'<table class="comps"><thead><tr><th>Inmueble</th><th>Tipo</th><th>Área</th><th>Hab/Bañ</th><th>Zona</th><th>Op.</th><th>Valor</th><th>Fuente</th><th>Contacto</th><th>Aviso</th><th>Mapa</th></tr></thead><tbody>'+res.slice(0,200).map(x=>{const d=x.d;return `<tr><td><b>${d.nombre||d.titulo||d.dir||"Inmueble"}</b></td><td>${d.tipo||d.tipoStd||"—"}</td><td>${d.area||"?"} m²</td><td>${d.hab||"?"}/${d.ban||"?"}</td><td>${d.zona||"—"}${d.municipio?" · "+d.municipio:""}</td><td>${x.op}</td><td><b>${x.valor?fmtP(x.valor):"—"}</b></td><td style="font-size:10px">${x.fuente}</td><td style="font-size:10px">${x.contacto||"—"}</td><td>${x.url?`<a href="${x.url}" target="_blank">🔗</a>`:"—"}</td><td>${okNum(d.lat)?`<a href="#" onclick="showTab('vmapa');setTimeout(function(){map.flyTo({center:[${d.lng},${d.lat}],zoom:16});},150);return false;">🗺</a>`:"—"}</td></tr>`;}).join("")+'</tbody></table>':'<div class="warn">Sin inventario que cumpla esos criterios. Amplía el presupuesto, quita el sector, o aún no hemos cargado ese inventario (la Comercialización C21 se carga desde century21colombia.com).</div>';
+}
 function openPanel(id){const d=allItems().find(x=>x.id===id);if(!d)return;
   const p=document.getElementById("panel");p.className="panel open";const g=gFor(id);
   const ventaEst=(d.capa==="adm"&&d.canon)?d.canon*200:null;
@@ -1346,6 +1389,11 @@ function openPanel(id){const d=allItems().find(x=>x.id===id);if(!d)return;
       <div><div class="v">E${d.estrato||"?"}</div><div class="l">Estrato</div></div>
       <div><div class="v" style="color:${ESTADOS[g.estado].c}">${ESTADOS[g.estado].n}</div><div class="l">Estado</div></div>
     </div>
+    ${(d.url||d.precio||d.valor||d.canon)?`<div class="zonecard" style="margin:10px 15px 0;border-color:var(--gold);background:rgba(190,175,135,.08)"><h4 style="color:var(--gold)">💲 Oferta del vendedor (para comparar)</h4>
+      ${d.precio?`<div class="zr"><span>Precio publicado</span><b>${typeof d.precio==="number"?fmtP(d.precio):d.precio}</b></div>`:""}
+      ${(d.valor&&!d.precio)?`<div class="zr"><span>Valor</span><b>${fmtP(parseFloat(d.valor))}</b></div>`:""}
+      ${d.canon?`<div class="zr"><span>Canon de renta</span><b>${fmtP(d.canon)}/mes${ventaEst?" · venta est. "+fmtP(ventaEst):""}</b></div>`:""}
+      ${d.url?`<div style="margin-top:6px"><a href="${d.url}" target="_blank" style="color:var(--cyan);font-weight:700">🔗 Abrir el aviso original del vendedor →</a></div>`:`<div style="font-size:9.5px;color:var(--muted);margin-top:4px">Sin URL pública (fuente propia C21 / inventario OSM)</div>`}</div>`:""}
     <div style="padding:10px 15px"><button onclick="analisisPremium('${d.id}')" style="width:100%;background:linear-gradient(120deg,var(--gold),var(--gold-d));color:#0a0e1a;border:none;font-family:var(--hud);font-size:13px;font-weight:700;letter-spacing:1px;padding:11px;border-radius:9px;cursor:pointer;box-shadow:var(--glow);text-transform:uppercase">📊 Análisis Premium C21 del sector</button></div>
     ${rows}
     ${(d.aprox||d.estimado||!okNum(d.lat))?`<div class="warn">⚠ ${!okNum(d.lat)?"Sin coordenada — ubicar en campo. ":(d.aprox?"Ubicación aproximada — verificar en campo. ":"")}${d.estimado&&d.unidades?"Nº de inmuebles estimado.":""}</div>`:""}
@@ -1395,6 +1443,10 @@ function openFsboPanel(id){const f=FSBO_ALL.find(x=>x.id===id);if(!f)return;
       <div><div class="v">${fmtP(f.precio)}</div><div class="l">${f.op==="Arriendo"?"Canon":"Precio"}</div></div>
       <div><div class="v">${pm2?fmtP(pm2):"—"}</div><div class="l">$/m²</div></div>
     </div>
+    <div class="zonecard" style="border-color:var(--gold);background:rgba(190,175,135,.08)"><h4 style="color:var(--gold)">💲 Oferta del propietario (para comparar)</h4>
+      <div class="zr"><span>${f.op==="Arriendo"?"Canon que pide":"Precio que pide"}</span><b>${fmtP(f.precio)}</b></div>
+      ${pm2?`<div class="zr"><span>Valor por m²</span><b>${fmtP(pm2)}/m²</b></div>`:""}
+      <div style="margin-top:6px"><a href="${f.url}" target="_blank" style="color:var(--cyan);font-weight:700">🔗 Abrir el aviso original del vendedor →</a></div></div>
     <div class="frow"><div class="k">Detalle</div><div class="val">${f.tipo} · ${f.area||"?"} m² · ${f.hab||"?"} hab · ${f.ban||"?"} baños</div></div>
     <div class="frow"><div class="k">Ubicación</div><div class="val">${f.dir||"Por confirmar"} ${f.conjunto?"· "+f.conjunto:""}</div></div>
     <div class="frow"><div class="k">Score</div><div class="val">${sc.det.join(" · ")}</div></div>
@@ -2492,7 +2544,8 @@ function showTab(v){document.querySelectorAll(".tab").forEach(t=>t.classList.tog
   document.querySelectorAll(".view").forEach(x=>x.classList.toggle("on",x.id===v));
   if(v==="vmapa")setTimeout(()=>map.resize(),100);
   if(v==="vcaptaciones")safeRun(renderCaptaciones,"captaciones");
-  if(v==="vaprobaciones")safeRun(renderAprobaciones,"aprobaciones");}
+  if(v==="vaprobaciones")safeRun(renderAprobaciones,"aprobaciones");
+  if(v==="vbuscar")safeRun(initBuscador,"buscador");}
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showTab(t.dataset.v)));
 document.querySelectorAll(".lchip").forEach(ch=>ch.addEventListener("click",()=>{const l=ch.dataset.l;layersOn[l]=!layersOn[l];ch.classList.toggle("on",layersOn[l]);render();}));
 document.querySelectorAll(".chip[data-zona]").forEach(ch=>ch.addEventListener("click",()=>{const z=ch.dataset.zona;
