@@ -583,7 +583,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
     <div class="filters" style="background:rgba(13,19,34,.5)">
       <label>Operación</label><select id="bcOp"><option value="">Venta y Renta</option><option>Venta</option><option>Renta</option></select>
       <label>Tipo</label><select id="bcTipo"><option value="">Cualquiera</option></select>
-      <label>Sector</label><select id="bcSector"><option value="">Cualquier sector</option></select>
+      <label>Zona</label><select id="bcSector"><option value="">Cualquier zona</option><option>Norte</option><option>Centro</option><option>Sur</option><option>Oriente</option><option>Occidente</option></select>
       <label>Presupuesto máx $</label><input id="bcPres" type="number" placeholder="200000000" style="width:125px">
       <label>Hab. mín</label><input id="bcHab" type="number" value="0" min="0" style="width:55px">
       <label>Estrato</label><select id="bcEstrato"><option value="">Todos</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
@@ -1351,15 +1351,13 @@ function bindGestion(id){["gAsig","gEstado","gPrio","gAdmin","gTel","gFecha","gN
 // ============ BUSCADOR PARA CLIENTES (inventario propio + aliadas + FSBO) ============
 function initBuscador(){
   const t=document.getElementById("bcTipo");if(t&&t.options.length<=1)t.innerHTML='<option value="">Cualquiera</option>'+TIPOS.filter(x=>x!=="Sin clasificar").map(x=>`<option>${x}</option>`).join("");
-  const s=document.getElementById("bcSector");if(s)s.innerHTML='<option value="">Cualquier sector</option>'+SEC.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
+  const s=document.getElementById("bcSector");if(s)s.innerHTML='<option value="">Cualquier zona</option>'+["Norte","Centro","Sur","Oriente","Occidente"].map(z=>`<option>${z}</option>`).join("");
 }
+function zonaCardinal(lat,lng){if(!okNum(lat)||!okNum(lng))return null;const c=(CITIES[activeCity]&&CITIES[activeCity].center)||[-75.6817,4.5339];const dN=(lat-c[1])*111320,dE=(lng-c[0])*111320*Math.cos(c[1]*Math.PI/180);if(Math.hypot(dN,dE)<1300)return "Centro";return Math.abs(dN)>=Math.abs(dE)?(dN>0?"Norte":"Sur"):(dE>0?"Oriente":"Occidente");}
 function buscarCliente(){
   const op=val("bcOp"),tipo=val("bcTipo"),pres=parseFloat(val("bcPres"))||0,habMin=parseInt(val("bcHab"))||0,estr=val("bcEstrato");
-  const selS=document.getElementById("bcSector");let sec=null;
-  if(selS&&selS.value)sec=secById[selS.value]||null;
-  if(!sec&&selS&&selS.selectedIndex>0){const nm=norm(selS.options[selS.selectedIndex].text);sec=SEC.find(s=>norm(s.nombre)===nm)||null;}
+  const zonaWant=norm(val("bcSector")||"");
   const fam=tipo?tipoFamilia(tipo):null;
-  const secKw=sec?(norm(sec.nombre).split(" ").filter(w=>w.length>3)[0]||norm(sec.nombre)):"";
   const pool=[];
   capaExtra(COM_C21,"com","com").forEach(d=>pool.push({d,fuente:"🏠 C21 Comercialización",contacto:d.contacto||"Oficina C21 DAB",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
   capaExtra(ADMIN_C21,"adm","adm").forEach(d=>pool.push({d,fuente:"🔑 C21 Administrada",contacto:d.contacto||"Oficina C21 DAB",valor:d.canon?d.canon*200:null,op:"Renta",url:d.url}));
@@ -1370,13 +1368,13 @@ function buscarCliente(){
     if(fam&&!famCompatible(tipoFamilia(x.d.tipo,x.d.tipoStd||x.d.categoria||x.d.nombre),fam))return false;
     if(habMin&&(parseInt(x.d.hab)||0)<habMin)return false;
     if(estr&&String(x.d.estrato||"").indexOf(estr)<0)return false;
-    if(sec){const near=okNum(x.d.lat)&&distM(x.d.lat,x.d.lng,sec.lat,sec.lng)<=(sec.radio||800)*1.7;const bySid=x.d.sector_id&&x.d.sector_id===sec.id;const txt=norm((x.d.nombre||"")+" "+(x.d.dir||"")+" "+(x.d.barrio||"")+" "+(x.d.conjunto||""));const byName=secKw&&txt.includes(secKw);if(!(near||bySid||byName))return false;}
+    if(zonaWant){const z=norm(zonaCardinal(x.d.lat,x.d.lng)||"");const zt=norm(x.d.zona||"");if(!(z===zonaWant||zt.includes(zonaWant)))return false;}
     if(pres&&x.valor&&x.valor>pres)return false;
     return true;
   }).sort((a,b)=>(a.valor||9e15)-(b.valor||9e15));
   const c21=res.filter(x=>/C21/.test(x.fuente)).length,ali=res.filter(x=>/Aliada/.test(x.fuente)).length,fsbo=res.filter(x=>/FSBO/.test(x.fuente)).length;
   document.getElementById("bcKpis").innerHTML=[["Resultados",res.length],["C21 propio",c21],["Aliadas",ali],["FSBO",fsbo]].map(k=>`<div class="stat"><div class="v">${k[1]}</div><div class="l">${k[0]}</div></div>`).join("");
-  document.getElementById("bcResultados").innerHTML=res.length?'<table class="comps"><thead><tr><th>Inmueble</th><th>Tipo</th><th>Área</th><th>Hab/Bañ</th><th>Zona</th><th>Op.</th><th>Valor</th><th>Fuente</th><th>Contacto</th><th>Aviso</th><th>Mapa</th></tr></thead><tbody>'+res.slice(0,200).map(x=>{const d=x.d;return `<tr><td><b>${d.nombre||d.titulo||d.dir||"Inmueble"}</b></td><td>${d.tipo||d.tipoStd||"—"}</td><td>${d.area||"?"} m²</td><td>${d.hab||"?"}/${d.ban||"?"}</td><td>${d.zona||"—"}${d.municipio?" · "+d.municipio:""}</td><td>${x.op}</td><td><b>${x.valor?fmtP(x.valor):"—"}</b></td><td style="font-size:10px">${x.fuente}</td><td style="font-size:10px">${x.contacto||"—"}</td><td>${x.url?`<a href="${x.url}" target="_blank">🔗</a>`:"—"}</td><td>${okNum(d.lat)?`<a href="#" onclick="showTab('vmapa');setTimeout(function(){map.flyTo({center:[${d.lng},${d.lat}],zoom:16});},150);return false;">🗺</a>`:"—"}</td></tr>`;}).join("")+'</tbody></table>':'<div class="warn">Sin inventario que cumpla esos criterios. Amplía el presupuesto, quita el sector, o aún no hemos cargado ese inventario (la Comercialización C21 se carga desde century21colombia.com).</div>';
+  document.getElementById("bcResultados").innerHTML=res.length?'<table class="comps"><thead><tr><th>Inmueble</th><th>Tipo</th><th>Área</th><th>Hab/Bañ</th><th>Zona</th><th>Op.</th><th>Valor</th><th>Fuente</th><th>Contacto</th><th>Aviso</th><th>Mapa</th></tr></thead><tbody>'+res.slice(0,200).map(x=>{const d=x.d;return `<tr><td><b>${d.nombre||d.titulo||d.dir||"Inmueble"}</b></td><td>${d.tipo||d.tipoStd||"—"}</td><td>${d.area||"?"} m²</td><td>${d.hab||"?"}/${d.ban||"?"}</td><td>${d.zona||"—"}${d.municipio?" · "+d.municipio:""}</td><td>${x.op}</td><td><b>${x.valor?fmtP(x.valor):"—"}</b></td><td style="font-size:10px">${x.fuente}</td><td style="font-size:10px">${x.contacto||"—"}</td><td>${x.url?`<a href="${x.url}" target="_blank">🔗</a>`:"—"}</td><td>${okNum(d.lat)?`<a href="#" onclick="showTab('vmapa');setTimeout(function(){map.flyTo({center:[${d.lng},${d.lat}],zoom:16});},150);return false;">🗺</a>`:"—"}</td></tr>`;}).join("")+'</tbody></table>':'<div class="warn">Sin inventario que cumpla esos criterios. Amplía el presupuesto, quita la zona, o aún no hemos cargado ese inventario (la Comercialización C21 se carga desde century21colombia.com).</div>';
 }
 function openPanel(id){const d=allItems().find(x=>x.id===id);if(!d)return;
   const p=document.getElementById("panel");p.className="panel open";const g=gFor(id);
