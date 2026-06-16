@@ -1151,11 +1151,13 @@ function addUsoLayer(){if(!uso3dData)return;
 async function toggleUso3D(){
   const btn=document.getElementById("btnUso");
   if(uso3dOn){uso3dOn=false;btn.classList.remove("on");if(map.getLayer("c21-uso-3d"))map.removeLayer("c21-uso-3d");renderLegend();return;}
-  if(!uso3dData){
-    if(uso3dCargando)return;
+  if(uso3dCargando)return;
+  if(map.getZoom()<12.8){return alert("Para cargar los edificios 3D por uso, acércate un poco más en el mapa: la capa se descarga del ÁREA VISIBLE (así Overpass no se satura). Haz zoom a un barrio y vuelve a pulsar 🏙 Uso 3D.");}
+  {
     uso3dCargando=true;btn.textContent="🏙 Cargando…";
     try{
-      const bb=(CITIES[activeCity].osm3d||[4.43,-75.82,4.69,-75.55]).join(",");const q='[out:json][timeout:90];way["building"~"^(apartments|residential|dormitory|terrace|commercial|retail|supermarket|mall|office|hotel|hostel|industrial|warehouse|school|university|college|hospital|church|chapel|civic|public|government)$"]('+bb+');out tags geom;';
+      const _b=map.getBounds();const bb=[_b.getSouth().toFixed(4),_b.getWest().toFixed(4),_b.getNorth().toFixed(4),_b.getEast().toFixed(4)].join(",");
+      const q='[out:json][timeout:60];way["building"~"^(apartments|residential|dormitory|terrace|house|detached|commercial|retail|supermarket|mall|office|hotel|hostel|industrial|warehouse|school|university|college|hospital|church|chapel|civic|public|government|yes)$"]('+bb+');out tags geom;';
       const r=await fetch("https://overpass-api.de/api/interpreter?data="+encodeURIComponent(q));
       const j=await r.json();
       uso3dData={type:"FeatureCollection",features:(j.elements||[]).filter(w=>w.geometry&&w.geometry.length>3).map(w=>{
@@ -1163,7 +1165,7 @@ async function toggleUso3D(){
         const cat=usoCat(t);
         if(!h)h=cat==="Vivienda"?14:(cat==="Institucional"?8:6);
         return{type:"Feature",properties:{cat,h,nombre:t.name||""},geometry:{type:"Polygon",coordinates:[w.geometry.map(p=>[p.lon,p.lat])]}};})};
-    }catch(e){uso3dCargando=false;btn.textContent="🏙 Uso 3D";return alert("No se pudo descargar la capa de usos (Overpass/OSM ocupado o sin internet). Inténtalo de nuevo en un minuto.");}
+    }catch(e){uso3dCargando=false;btn.textContent="🏙 Uso 3D";return alert("No se pudo descargar la capa de usos (Overpass/OSM ocupado o sin internet). Acércate más o inténtalo de nuevo en un minuto.");}
     uso3dCargando=false;}
   uso3dOn=true;btn.classList.add("on");btn.textContent="🏙 Uso 3D ("+uso3dData.features.length.toLocaleString("es-CO")+")";
   addUsoLayer();renderLegend();}
@@ -1852,22 +1854,22 @@ function comparablesEnCascada(sec,fam,area,minN,refLat,refLng){
   const r=(sec.radio||1000);
   // niveles: [criterio texto, filtro]
   const A=area||0;
+  // REGLA RAÍZ JAB de cercanía: primero ≤1 km; si no hay suficientes, ≤2 km; máximo ≤3 km entre inmuebles.
   const niveles=[
-    ["mismo tipo · ≤"+Math.round(r*2.2/1000*10)/10+" km · área ±35%", x=>x.fam===fam&&x.dist<=r*2.2&&(!A||(x.c.area>=A*0.65&&x.c.area<=A*1.35))],
-    ["mismo tipo · ≤"+Math.round(r*2.2/1000*10)/10+" km · área ±60%", x=>x.fam===fam&&x.dist<=r*2.2&&(!A||(x.c.area>=A*0.4&&x.c.area<=A*1.6))],
-    ["mismo tipo · misma zona ("+(sec.zona||"")+")", x=>x.fam===fam&&(x.c.d.zona===sec.zona)],
-    ["mismo tipo · ≤6 km", x=>x.fam===fam&&x.dist<=6000],
-    ["mismo tipo · cualquier ubicación", x=>x.fam===fam],
-    ["tipo compatible · misma zona", x=>famCompatible(x.fam,fam)&&x.c.d.zona===sec.zona],
-    ["tipo compatible · ≤6 km", x=>famCompatible(x.fam,fam)&&x.dist<=6000]
+    ["mismo tipo · ≤1 km · área ±35%", x=>x.fam===fam&&x.dist<=1000&&(!A||(x.c.area>=A*0.65&&x.c.area<=A*1.35))],
+    ["mismo tipo · ≤1 km · área ±60%", x=>x.fam===fam&&x.dist<=1000&&(!A||(x.c.area>=A*0.4&&x.c.area<=A*1.6))],
+    ["mismo tipo · ≤1 km", x=>x.fam===fam&&x.dist<=1000],
+    ["mismo tipo · ≤2 km", x=>x.fam===fam&&x.dist<=2000],
+    ["mismo tipo · ≤3 km (máximo regla JAB)", x=>x.fam===fam&&x.dist<=3000],
+    ["tipo compatible · ≤3 km (máximo)", x=>famCompatible(x.fam,fam)&&x.dist<=3000]
   ];
   for(let i=0;i<niveles.length;i++){
     const sel=conDist.filter(niveles[i][1]).sort((a,b)=>a.dist-b.dist).slice(0,6);
     if(sel.length>=minN)return{comps:sel,nivel:i+1,criterio:niveles[i][0],total:conDist.filter(niveles[i][1]).length,tipoMix:sel.some(x=>x.fam!==fam)};
   }
   // último recurso: lo más cercano del mismo tipo aunque sean pocos
-  const todo=conDist.filter(x=>x.fam===fam).sort((a,b)=>a.dist-b.dist).slice(0,6);
-  return{comps:todo,nivel:99,criterio:"todo el inventario del mismo tipo",total:todo.length,tipoMix:false};}
+  const todo=conDist.filter(x=>x.fam===fam&&x.dist<=3000).sort((a,b)=>a.dist-b.dist).slice(0,6);
+  return{comps:todo,nivel:99,criterio:"mismo tipo dentro de 3 km (máximo regla JAB)",total:todo.length,tipoMix:false};}
 function famCompatible(a,b){ // b=familia del SUJETO, a=familia del candidato. Regla dura de Jaime: casa solo casa, apto solo apto; NUNCA cruzar casa↔apto. La finca (rural) sí puede apoyarse en casas.
   const grupo={casa:["casa"],apto:["apto"],finca:["finca","casa"],comercial:["comercial"],lote:["lote"],otro:["otro","casa","apto","finca","comercial","lote"]};
   return (grupo[b]||[b]).includes(a);}
@@ -2279,17 +2281,17 @@ function acmAutoComps(silent){const sid=document.getElementById("acSector").valu
   // v5.7: cascada de relajación (familia de tipo + radio→zona→área) para no quedar mudo
   const fam=tipoFamilia(t),A=parseFloat(document.getElementById("acArea").value)||0,r=(sec.radio||1000);
   const wd=cands.map(c=>({c,dist:distM(c.d.lat,c.d.lng,sec.lat,sec.lng),fam:tipoFamilia(c.d.tipo,c.d.tipoStd||c.d.categoria||c.d.nombre)}));
+  // REGLA RAÍZ JAB de cercanía: ≤1 km, luego ≤2 km, máximo ≤3 km.
   const niveles=[
-    x=>x.fam===fam&&x.dist<=r*2.2&&(!A||(x.c.area>=A*0.65&&x.c.area<=A*1.35)),
-    x=>x.fam===fam&&x.dist<=r*2.2&&(!A||(x.c.area>=A*0.4&&x.c.area<=A*1.6)),
-    x=>x.fam===fam&&x.c.d.zona===sec.zona,
-    x=>x.fam===fam&&x.dist<=6000,
-    x=>x.fam===fam,
-    x=>famCompatible(x.fam,fam)&&x.c.d.zona===sec.zona,
-    x=>famCompatible(x.fam,fam)&&x.dist<=6000];
+    x=>x.fam===fam&&x.dist<=1000&&(!A||(x.c.area>=A*0.65&&x.c.area<=A*1.35)),
+    x=>x.fam===fam&&x.dist<=1000&&(!A||(x.c.area>=A*0.4&&x.c.area<=A*1.6)),
+    x=>x.fam===fam&&x.dist<=1000,
+    x=>x.fam===fam&&x.dist<=2000,
+    x=>x.fam===fam&&x.dist<=3000,
+    x=>famCompatible(x.fam,fam)&&x.dist<=3000];
   let near=[],crit="";
   for(const f of niveles){const sel=wd.filter(f).sort((a,b)=>a.dist-b.dist).slice(0,6);if(sel.length>=2){near=sel;break;}}
-  if(!near.length)near=wd.filter(x=>famCompatible(x.fam,fam)).sort((a,b)=>a.dist-b.dist).slice(0,6);
+  if(!near.length)near=wd.filter(x=>famCompatible(x.fam,fam)&&x.dist<=3000).sort((a,b)=>a.dist-b.dist).slice(0,6);
   window.__acmTipoMix=near.some(x=>x.fam!==fam);window.__acmFam=fam; // regla casa/apto: avisar si se mezcló tipo
   document.getElementById("acmRows").innerHTML="";acmN=0;
   if(!near.length){if(!silent)alert("El Atlas aún no tiene comparables de ese tipo. Agrega manuales o usa el Avaluador JAB.");return;}
