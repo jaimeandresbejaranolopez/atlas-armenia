@@ -1582,11 +1582,11 @@ function renderResultado(){
   let disp=-1,dmax=-1;comps.forEach((c,k)=>{const d=Math.abs(c.vh-prom);if(d>dmax){dmax=d;disp=c.i;}});
   document.getElementById("avres").className="avres show";
   document.getElementById("avresBd").innerHTML=`
-    <div style="overflow-x:auto"><table class="comps"><thead><tr><th>Muestra</th><th>$ total</th><th>Vr m²</th><th>% Simil.</th><th>F. Área</th><th>F. Ubic.</th><th>F. Hab</th><th>F. Baños</th><th>F. Parq</th><th>Vr m² HOMOG.</th></tr></thead><tbody>
-    ${comps.map(c=>`<tr${c.i===disp&&!cvOk?' style="background:rgba(255,111,94,.12)"':''}><td><b>${c.desc}</b>${c.i===disp&&!cvOk?' <span style="color:var(--red);font-size:9px">● más dispersa</span>':''}<div class="scorebd">${c.portal}${c.url?` · <a href="${c.url}" target="_blank">url</a>`:""}</div></td>
+    <div style="overflow-x:auto"><table class="comps"><thead><tr><th>Muestra</th><th>$ total</th><th>Vr m²</th><th>% Simil.</th><th>F. Área</th><th>F. Ubic.</th><th>F. Hab</th><th>F. Baños</th><th>F. Parq</th><th>Vr m² HOMOG.</th><th>Disp.</th><th>Acción</th></tr></thead><tbody>
+    ${comps.map(c=>{const dPct=prom?Math.abs(c.vh-prom)/prom*100:0;const dCol=dPct>7?"var(--red)":(dPct>4?"#ffb347":"var(--muted)");return `<tr${c.i===disp&&!cvOk?' style="background:rgba(255,111,94,.12)"':''}><td><b>${c.desc}</b>${c.i===disp&&!cvOk?' <span style="color:var(--red);font-size:9px">● más dispersa</span>':''}<div class="scorebd">${c.portal}${c.url?` · <a href="${c.url}" target="_blank">url</a>`:""}</div></td>
       <td>${fmtP(c.precio)}</td><td>${fmtP(c.vm2)}</td><td>${c.sim.total}%</td>
       <td>${selF(c,"area")}</td><td>${selF(c,"ubic")}</td><td>${selF(c,"hab")}</td><td>${selF(c,"ban")}</td><td>${selF(c,"parq")}</td>
-      <td><b>${fmtP(c.vh)}</b></td></tr>`).join("")}</tbody></table></div>
+      <td><b>${fmtP(c.vh)}</b></td><td style="color:${dCol};font-weight:700" title="Qué tan lejos está esta muestra del promedio homogeneizado">${dPct.toFixed(1)}%</td><td><button title="Eliminar esta muestra y recalcular el avalúo" onclick="descartarComp(${c.i})" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;white-space:nowrap">✕ Eliminar</button></td></tr>`;}).join("")}</tbody></table></div>
     <div class="notice">Similitud promedio ${simProm.toFixed(1)}% · Vr m² homogeneizado promedio ${fmtP(prom)} · desviación estándar ${fmtP(desv)}.</div>
     ${lastCalc._auto>0?`<div class="notice" style="border:1px solid var(--green);border-radius:6px;padding:6px 9px;margin:6px 0;color:var(--green)">🔄 Depuración automática (Res. 620): se retiró ${lastCalc._auto} muestra${lastCalc._auto>1?"s":""} que no homogeneizaba${lastCalc._auto>1?"n":""}, dejando las ${comps.length} más coherentes (mínimo del método). No se forzaron muestras fuera de rango.</div>`:""}
     <div style="border:1.5px solid ${cvColor};border-radius:9px;padding:9px 12px;margin:8px 0;font-size:11.5px">
