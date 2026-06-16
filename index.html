@@ -1352,8 +1352,12 @@ function initBuscador(){
   const s=document.getElementById("bcSector");if(s)s.innerHTML='<option value="">Cualquier sector</option>'+SEC.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
 }
 function buscarCliente(){
-  const op=val("bcOp"),tipo=val("bcTipo"),sid=val("bcSector"),pres=parseFloat(val("bcPres"))||0,habMin=parseInt(val("bcHab"))||0,estr=val("bcEstrato");
-  const sec=sid?secById[sid]:null,fam=tipo?tipoFamilia(tipo):null;
+  const op=val("bcOp"),tipo=val("bcTipo"),pres=parseFloat(val("bcPres"))||0,habMin=parseInt(val("bcHab"))||0,estr=val("bcEstrato");
+  const selS=document.getElementById("bcSector");let sec=null;
+  if(selS&&selS.value)sec=secById[selS.value]||null;
+  if(!sec&&selS&&selS.selectedIndex>0){const nm=norm(selS.options[selS.selectedIndex].text);sec=SEC.find(s=>norm(s.nombre)===nm)||null;}
+  const fam=tipo?tipoFamilia(tipo):null;
+  const secKw=sec?(norm(sec.nombre).split(" ").filter(w=>w.length>3)[0]||norm(sec.nombre)):"";
   const pool=[];
   capaExtra(COM_C21,"com","com").forEach(d=>pool.push({d,fuente:"🏠 C21 Comercialización",contacto:d.contacto||"Oficina C21 DAB",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
   capaExtra(ADMIN_C21,"adm","adm").forEach(d=>pool.push({d,fuente:"🔑 C21 Administrada",contacto:d.contacto||"Oficina C21 DAB",valor:d.canon?d.canon*200:null,op:"Renta",url:d.url}));
@@ -1364,7 +1368,7 @@ function buscarCliente(){
     if(fam&&!famCompatible(tipoFamilia(x.d.tipo,x.d.tipoStd||x.d.categoria||x.d.nombre),fam))return false;
     if(habMin&&(parseInt(x.d.hab)||0)<habMin)return false;
     if(estr&&String(x.d.estrato||"").indexOf(estr)<0)return false;
-    if(sec){if(okNum(x.d.lat)){if(distM(x.d.lat,x.d.lng,sec.lat,sec.lng)>(sec.radio||1000)*2.5)return false;}else if((x.d.zona||"")!==sec.zona)return false;}
+    if(sec){const near=okNum(x.d.lat)&&distM(x.d.lat,x.d.lng,sec.lat,sec.lng)<=(sec.radio||800)*1.7;const bySid=x.d.sector_id&&x.d.sector_id===sec.id;const txt=norm((x.d.nombre||"")+" "+(x.d.dir||"")+" "+(x.d.barrio||"")+" "+(x.d.conjunto||""));const byName=secKw&&txt.includes(secKw);if(!(near||bySid||byName))return false;}
     if(pres&&x.valor&&x.valor>pres)return false;
     return true;
   }).sort((a,b)=>(a.valor||9e15)-(b.valor||9e15));
