@@ -468,6 +468,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
             <div class="full"><label>Solicitante / Propietario</label><input id="sjSolic" placeholder="Nombre del cliente"></div>
             <div class="full"><label>Matrícula inmobiliaria</label><input id="sjMatr" placeholder="280-XXXXX"></div>
             <div class="full"><label>📷 Registro fotográfico (hasta 8 fotos — la 1ª será la portada del informe)</label><input id="sjFotos" type="file" accept="image/*" multiple><div id="fotosPrev" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div></div>
+            <div class="full"><label>📎 Anexos PDF (certificado de tradición, planos, escritura…) — se agregan al final del informe</label><input id="sjAnexos" type="file" accept="application/pdf" multiple onchange="cargarAnexos(this)"><div id="anexosPrev" style="font-size:10.5px;color:var(--muted);margin-top:5px"></div></div>
           </div>
           <div class="avbtns">
             <button class="btnGold" onclick="buscarComparables()">🌐 Buscar comparables en portales</button>
@@ -521,6 +522,11 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
             <div><label>Utilidad promotor %</label><input id="reUtil" type="number" step="0.5" value="12"></div>
             <div class="full"><button class="btnGold" onclick="calcResidual()">Calcular terreno (residual)</button> <span id="reRes" style="font-weight:700;font-size:11px"></span></div>
           </div>
+          <h3 style="font-size:12px;background:none;border:none;color:var(--cyan);padding:8px 0 4px">1·b · Tierra por comparación del sector (rural — recomendado para fincas)</h3>
+          <div class="notice" style="font-size:10px">Para fincas/lotes rurales el suelo se valora por <b>comparables de la misma zona (Buenavista y veredas vecinas)</b>, no por residual urbano. Ingresa ventas/ofertas reales del sector; el sistema saca el $/m² promedio y lo aplica al área del predio (Res.620: comparables de la misma zona homogénea).</div>
+          <div class="avform"><div><label>Área del predio m²</label><input id="tcArea" type="number" placeholder="ej: 64000 (6,4 ha)" oninput="calcTComp()"></div></div>
+          <table class="comps"><thead><tr><th>Comparable (sector)</th><th>Área m²</th><th>Precio total $</th><th>$/m²</th><th></th></tr></thead><tbody id="tcRows"></tbody></table>
+          <div class="avbtns"><button class="btnGold" style="padding:4px 10px;font-size:10.5px" onclick="addTComp()">+ Comparable de tierra</button><span id="tcRes" style="font-weight:700;font-size:11px"></span></div>
           <h3 style="font-size:12px;background:none;border:none;color:var(--cyan);padding:8px 0 4px">2 · Mobiliario (hoteles — Art. 137 E.T.)</h3>
           <div class="notice" style="font-size:10px">Por ítem: promedio de 3 cotizaciones × cantidad × (1 − %dep). Muebles/equipos 30% · electrónica 40%.</div>
           <table class="comps"><thead><tr><th>Ítem</th><th>Cant.</th><th>Vr comercial $</th><th>%Dep</th><th></th></tr></thead><tbody id="mobRows"></tbody></table>
@@ -529,6 +535,11 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
           <div class="notice" style="font-size:10px">Obras singulares no comparables, por costo unitario (cancha, lago, piscina, beneficiadero, cercas…). m² o m³.</div>
           <table class="comps"><thead><tr><th>Descripción</th><th>Cant. (m²/m³)</th><th>Vr unitario $</th><th></th></tr></thead><tbody id="mejRows"></tbody></table>
           <div class="avbtns"><button class="btnGold" style="padding:4px 10px;font-size:10.5px" onclick="addMej()">+ Mejora</button><span id="mejRes" style="font-weight:700;font-size:11px"></span></div>
+          <h3 style="font-size:12px;background:none;border:none;color:#2e9e5b;padding:8px 0 4px">4 · Plantaciones / cultivos permanentes (Res.620 Art.2 y 31)</h3>
+          <div class="normbox" style="margin:6px 0">Valoración por <b>VPN de la renta neta de la vida útil restante</b> (así se incorpora la depreciación por edad). Elige el cultivo y se cargan defaults reales (densidad, vida útil, renta neta/ha) <b>editables</b>; ajústalos al estudio y estado real del lote. Cultivo joven (antes de producir) = costo de establecimiento acumulado. <i>Requiere inventario técnico en campo: conteo de árboles, edad, densidad efectiva y estado fitosanitario.</i></div>
+          <div class="avform"><div><label>Tasa de descuento real % (agro 10–12)</label><input id="avTasa" type="number" step="0.5" value="11" oninput="calcPlant()"></div></div>
+          <table class="comps"><thead><tr><th>Cultivo</th><th>N° árb.</th><th>Edad (a)</th><th>Vida útil</th><th>Renta neta $/ha/año</th><th>Dens/ha</th><th>Valor</th><th></th></tr></thead><tbody id="plRows"></tbody></table>
+          <div class="avbtns"><button class="btnGold" style="padding:4px 10px;font-size:10.5px" onclick="addPlant()">+ Plantación</button><span id="plRes" style="font-weight:700;font-size:11px"></span></div>
           <h3 style="font-size:12px;background:none;border:none;color:var(--gold);padding:10px 0 4px">Σ VALOR TOTAL DEL INMUEBLE ESPECIAL/RURAL</h3>
           <div class="avform">
             <div><label>Valor terreno $ (residual o comparativo)</label><input id="vtTerreno" type="number" placeholder="del residual o m²×área"></div>
@@ -781,6 +792,12 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
       <input id="ubBuscar" placeholder="Buscar dirección (ej: Calle 50N 15-01 Los Cedros Armenia)" style="flex:1;min-width:200px;padding:7px;border:1px solid var(--line);border-radius:6px;background:var(--inbg);color:var(--txt);font-size:12px">
       <button class="btnGold" style="padding:6px 12px" onclick="ubGeocodificar()">🔎 Buscar</button>
       <span id="ubMsg" style="font-size:10.5px;color:var(--muted)"></span>
+    </div>
+    <div style="padding:9px 14px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)">
+      <span style="font-size:11px;color:var(--gold-d)">📍 Pegar de Google Maps:</span>
+      <input id="ubGmaps" placeholder="link de Google Maps o coordenadas (ej: 4.3611, -75.7402)" style="flex:1;min-width:230px;padding:7px;border:1px solid var(--line);border-radius:6px;background:var(--inbg);color:var(--txt);font-size:12px">
+      <button class="btnGold" style="padding:6px 12px" onclick="ubPegarGmaps()">📌 Ubicar</button>
+      <span id="ubGmapsMsg" style="font-size:10.5px;color:var(--muted)"></span>
     </div>
     <div id="ubMap" style="flex:1;min-height:380px"></div>
     <div style="padding:10px 16px;display:flex;gap:10px;align-items:center;border-top:1px solid var(--line)">
@@ -1737,12 +1754,70 @@ function addMej(){const i=mejN++;document.getElementById("mejRows").insertAdjace
   ["c","v"].forEach(s=>{const el=document.getElementById("mej"+i+s);if(el)el.addEventListener("input",calcMej);});}
 function calcMej(){let t=0;for(let i=0;i<mejN;i++){const r=document.getElementById("mej"+i);if(!r)continue;const c=parseFloat(val("mej"+i+"c"))||0,v=parseFloat(val("mej"+i+"v"))||0;t+=c*v;}
   document.getElementById("mejRes").innerHTML=t?`· Mejoras/espacios: <b>${fmtP(t)}</b>`:"";window.__mejTotal=t;return t;}
-function calcEspecialTotal(){const ter=num("vtTerreno")||0,con=num("vtConstr")||0,mob=calcMob()||0,mej=calcMej()||0;
-  const total=ter+con+mob+mej;
-  if(!total)return alert("Ingresa al menos el valor del terreno o de la construcción.");
+// ===== TIERRA por comparación de mercado del SECTOR (rural — Res.620 Art.2) =====
+let tcN=0;
+function addTComp(){const i=tcN++;document.getElementById("tcRows").insertAdjacentHTML("beforeend",`<tr id="tc${i}">
+  <td><input id="tc${i}d" placeholder="Comparable del sector (vereda/fuente)" class="wide"></td>
+  <td><input id="tc${i}a" type="number" placeholder="área m²" style="width:90px"></td>
+  <td><input id="tc${i}p" type="number" placeholder="precio total $" style="width:120px"></td>
+  <td id="tc${i}u" style="font-size:10px;color:var(--muted)"></td>
+  <td><b style="color:var(--red);cursor:pointer" onclick="document.getElementById('tc${i}').remove();calcTComp()">✕</b></td></tr>`);
+  ["a","p"].forEach(s=>{const el=document.getElementById("tc"+i+s);if(el)el.addEventListener("input",calcTComp);});}
+function calcTComp(){let sum=0,n=0;for(let i=0;i<tcN;i++){const r=document.getElementById("tc"+i);if(!r)continue;const a=num("tc"+i+"a"),p=num("tc"+i+"p");if(a>0&&p>0){const u=p/a;sum+=u;n++;const c=document.getElementById("tc"+i+"u");if(c)c.textContent=fmtP(u)+"/m²";}}
+  const avg=n?sum/n:0,area=num("tcArea")||0,vt=avg*area;
+  const out=document.getElementById("tcRes");
+  if(out)out.innerHTML=n?`$/m² promedio del sector (n=${n}): <b>${fmtP(avg)}</b> · ${fmtP(avg*10000)}/ha × ${area.toLocaleString("es-CO")} m² = <b style="color:var(--gold)">${fmtP(vt)}</b>`:`Agrega comparables de tierra <b>del sector (Buenavista)</b> — Res.620 exige comparables de la misma zona homogénea.`;
+  const t=document.getElementById("vtTerreno");if(t&&vt)t.value=Math.round(vt);
+  window.__tierraComp={avg,area,vt,n};return vt;}
+// ===== PLANTACIONES / cultivos permanentes (Res.620 Art.2 y 31 · VPN de vida útil restante) =====
+// Defaults reales (Colombia/Quindío 2024-26): dens=plantas/ha · vida=años útil prod · entrada=años a producir · renta=utilidad neta $/ha/año · estab=costo establecimiento $/ha
+const CULTIVOS_REF={
+ "Café":{dens:5300,vida:7,entrada:2,renta:4800000,estab:7000000},
+ "Plátano":{dens:1800,vida:7,entrada:1,renta:6000000,estab:9000000},
+ "Aguacate Hass":{dens:233,vida:20,entrada:3,renta:15000000,estab:22870000},
+ "Cítricos (naranja/mandarina)":{dens:208,vida:18,entrada:3,renta:7000000,estab:12000000},
+ "Limón Tahití":{dens:250,vida:12,entrada:3,renta:9280000,estab:14000000},
+ "Banano":{dens:1800,vida:10,entrada:1,renta:8000000,estab:9000000},
+ "Cacao":{dens:1100,vida:35,entrada:4,renta:6000000,estab:11000000},
+ "Guadua":{dens:1200,vida:30,entrada:5,renta:3500000,estab:4500000},
+ "Otro":{dens:1000,vida:15,entrada:3,renta:5000000,estab:8000000}
+};
+let plantN=0;
+function plantDefaults(i){const d=CULTIVOS_REF[val("pl"+i+"t")];if(!d)return;[["v",d.vida],["r",d.renta],["dn",d.dens]].forEach(([s,v])=>{const el=document.getElementById("pl"+i+s);if(el&&!el.dataset.touched)el.value=v;});calcPlant();}
+function valorPlant(N,edad,vida,rentaHa,dens,entrada,estab,i){if(!(N>0)||!(dens>0))return 0;const ha=N/dens;
+  if(edad<entrada){return estab*ha*Math.max(0,edad)/(entrada||1);}            // joven: costo acumulado (Art.3/17)
+  const vr=Math.max(0,vida-edad);if(vr<=0)return 0;                            // sin vida útil restante
+  const fa=i>0?(1-Math.pow(1+i,-vr))/i:vr;                                     // factor anualidad (depreciación por edad)
+  return (rentaHa/dens)*fa*N;}                                                 // VPN renta neta por árbol × N
+function addPlant(){const i=plantN++;const opts=Object.keys(CULTIVOS_REF).map(k=>`<option>${k}</option>`).join("");
+  document.getElementById("plRows").insertAdjacentHTML("beforeend",`<tr id="pl${i}">
+   <td><select id="pl${i}t" onchange="plantDefaults(${i})">${opts}</select></td>
+   <td><input id="pl${i}n" type="number" placeholder="árboles" style="width:72px"></td>
+   <td><input id="pl${i}e" type="number" placeholder="edad" style="width:52px"></td>
+   <td><input id="pl${i}v" type="number" style="width:52px"></td>
+   <td><input id="pl${i}r" type="number" style="width:100px"></td>
+   <td><input id="pl${i}dn" type="number" style="width:62px"></td>
+   <td id="pl${i}res" style="font-size:10px;font-weight:700">—</td>
+   <td><b style="color:var(--red);cursor:pointer" onclick="document.getElementById('pl${i}').remove();calcPlant()">✕</b></td></tr>`);
+  ["n","e","v","r","dn"].forEach(s=>{const el=document.getElementById("pl"+i+s);if(el)el.addEventListener("input",()=>{el.dataset.touched=1;calcPlant();});});
+  plantDefaults(i);}
+function calcPlant(){const tasa=(num("avTasa")||11)/100;let t=0;const rows=[];
+  for(let i=0;i<plantN;i++){const r=document.getElementById("pl"+i);if(!r)continue;
+   const ct=val("pl"+i+"t"),d=CULTIVOS_REF[ct]||CULTIVOS_REF["Otro"];
+   const N=num("pl"+i+"n"),e=num("pl"+i+"e"),vida=num("pl"+i+"v")||d.vida,renta=num("pl"+i+"r")||d.renta,dens=num("pl"+i+"dn")||d.dens;
+   const v=valorPlant(N,e,vida,renta,dens,d.entrada,d.estab,tasa);t+=v;
+   const vr=Math.max(0,vida-e),dev=e<d.entrada;
+   if(N>0)rows.push({ct,N,e,vida,renta,dens,v,vr,dev});
+   const cell=document.getElementById("pl"+i+"res");
+   if(cell)cell.innerHTML=v?`${fmtP(v)}<br><span style="font-weight:400;color:var(--muted)">${dev?"en desarrollo":"vida rest. "+vr+" a"}</span>`:"—";}
+  const out=document.getElementById("plRes");if(out)out.innerHTML=t?`· Plantaciones: <b>${fmtP(t)}</b> (tasa ${(tasa*100).toFixed(0)}%)`:"";
+  window.__plantTotal=t;window.__plantTasa=tasa;window.__plantRows=rows;return t;}
+function calcEspecialTotal(){const ter=num("vtTerreno")||0,con=num("vtConstr")||0,mob=calcMob()||0,mej=calcMej()||0,pl=calcPlant()||0;
+  const infra=con+mej;const total=ter+infra+mob+pl;
+  if(!total)return alert("Ingresa al menos el valor de la tierra, la infraestructura o las plantaciones.");
   const e=document.getElementById("especialRes");e.style.display="block";
-  e.innerHTML=`VALOR TOTAL: ${fmtP(total)}<br><span style="font-size:10px;font-weight:400">Terreno ${fmtP(ter)} + Construcción ${fmtP(con)}${mob?" + Mobiliario "+fmtP(mob):""}${mej?" + Mejoras "+fmtP(mej):""}</span><br>SON: ${numALetras(Math.round(total))} PESOS MCTE`;
-  window.__especialTotal={ter,con,mob,mej,total};}
+  e.innerHTML=`VALOR TOTAL DEL PREDIO RURAL: ${fmtP(total)}<br><span style="font-size:10px;font-weight:400">Tierra ${fmtP(ter)} + Plantaciones ${fmtP(pl)} + Infraestructura ${fmtP(infra)}${mob?" + Mobiliario "+fmtP(mob):""}<br><i>Estructura Res.620/2008 IGAC: suelo (comparación del sector) + cultivos (VPN vida útil restante) + mejoras (reposición depreciada).</i></span><br>SON: ${numALetras(Math.round(total))} PESOS MCTE`;
+  window.__especialTotal={ter,con,mej,infra,mob,pl,total};}
 // Número a letras (es-CO)
 function numALetras(n){
   const U=["","UNO","DOS","TRES","CUATRO","CINCO","SEIS","SIETE","OCHO","NUEVE","DIEZ","ONCE","DOCE","TRECE","CATORCE","QUINCE","DIECISEIS","DIECISIETE","DIECIOCHO","DIECINUEVE","VEINTE"];
@@ -1880,6 +1955,17 @@ function ubGeocodificar(){const q=document.getElementById("ubBuscar").value.trim
     .then(r=>r.json()).then(j=>{if(j&&j[0]){const lat=parseFloat(j[0].lat),lng=parseFloat(j[0].lon);ubMap.flyTo({center:[lng,lat],zoom:16});setUbPunto(lat,lng);document.getElementById("ubMsg").textContent="✓ encontrado (ajusta el marcador si hace falta)";}
       else document.getElementById("ubMsg").textContent="No se encontró — ubícalo a mano con clic.";})
     .catch(()=>document.getElementById("ubMsg").textContent="Sin conexión al geocodificador — ubícalo con clic.");}
+function parseGmaps(s){if(!s)return null;let m;
+  m=s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);if(m)return[parseFloat(m[1]),parseFloat(m[2])];   // place exacto
+  m=s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);if(m)return[parseFloat(m[1]),parseFloat(m[2])];        // @centro
+  m=s.match(/[?&]q=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/);if(m)return[parseFloat(m[1]),parseFloat(m[2])];// q=lat,lng
+  m=s.match(/(-?\d{1,2}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})/);if(m)return[parseFloat(m[1]),parseFloat(m[2])];// lat,lng plano
+  return null;}
+function ubPegarGmaps(){const s=document.getElementById("ubGmaps").value.trim();const p=parseGmaps(s);const msg=document.getElementById("ubGmapsMsg");
+  if(!p||!okNum(p[0])||!okNum(p[1])||Math.abs(p[0])>90||Math.abs(p[1])>180){msg.style.color="#e07a5f";msg.textContent="No reconocí coordenadas. Pega el link COMPLETO de Google Maps o 'lat, lng' (los links cortos maps.app.goo.gl no traen coordenadas).";return;}
+  msg.style.color="var(--muted)";msg.textContent="✓ ubicado en "+p[0].toFixed(5)+", "+p[1].toFixed(5);
+  if(ubMap){ubMap.flyTo({center:[p[1],p[0]],zoom:16});}
+  setUbPunto(p[0],p[1]);}
 function cerrarUbicador(asignar){
   if(asignar){if(!ubPick){alert("Haz clic en el mapa para marcar el predio.");return;}
     sjLat=ubPick[0];sjLng=ubPick[1];
@@ -2005,19 +2091,45 @@ function quitarFirma(){avFirma=null;try{localStorage.removeItem(LS_FIRMA);}catch
 // --- mapa de ubicación estático (mosaico 3×3 CARTO centrado en el predio) ---
 function mapaUbicacionHTML(lat,lng,z){
   if(!okNum(lat)||!okNum(lng))return"";
-  z=z||16;const n=Math.pow(2,z);
-  const xf=(lng+180)/360*n, yf=(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n;
-  const xt=Math.floor(xf), yt=Math.floor(yf), sub="abcd"; let cells="";
-  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-    const tx=xt+dx, ty=yt+dy, s=sub[Math.abs(tx*7+ty)%4];
-    cells+=`<img src="https://${s}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${tx}/${ty}.png" style="width:100%;display:block" crossorigin="anonymous">`;
-  }
-  const px=((xf-(xt-1))/3*100).toFixed(2), py=((yf-(yt-1))/3*100).toFixed(2);
+  z=z||16;const half=0.0035*Math.pow(2,16-z);const hl=half/Math.cos(lat*Math.PI/180);
+  const bbox=(lng-hl)+","+(lat-half)+","+(lng+hl)+","+(lat+half);
+  const url="https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox="+bbox+"&bboxSR=4326&imageSR=4326&size=640,640&format=jpg&f=image";
   return `<div style="position:relative;width:480px;max-width:100%;margin:6px auto;border:1px solid #999;border-radius:5px;overflow:hidden">
-    <div style="display:grid;grid-template-columns:repeat(3,1fr)">${cells}</div>
-    <div style="position:absolute;left:${px}%;top:${py}%;transform:translate(-50%,-100%);font-size:22px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))">📍</div>
+    <img src="${url}" style="width:100%;display:block" alt="Imagen satelital del predio">
+    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:24px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85))">📍</div>
   </div>`;
 }
+function ruralReportHTML(){const E=window.__especialTotal;if(!E||!E.total)return"";
+  const tc=window.__tierraComp||{},pr=window.__plantRows||[],tasa=Math.round((window.__plantTasa||0.11)*100);
+  const plTbl=pr.length?`<table><tr><th>Cultivo</th><th>N° árb.</th><th>Edad</th><th>Vida útil</th><th>Vida rest.</th><th>Renta neta $/ha</th><th>Valor</th></tr>${pr.map(p=>`<tr><td>${p.ct}</td><td>${p.N.toLocaleString("es-CO")}</td><td>${p.e} a</td><td>${p.vida} a</td><td>${p.dev?"en desarrollo":p.vr+" a"}</td><td>${fmtP(p.renta)}</td><td><b>${fmtP(p.v)}</b></td></tr>`).join("")}<tr><th colspan="6" style="text-align:right">Subtotal plantaciones</th><th>${fmtP(E.pl||0)}</th></tr></table>`:"";
+  return `<div class="pgbrk"></div><h2>Valoración rural por componentes (Res. 620/2008 IGAC)</h2>
+  <p style="font-size:10px">El valor del predio rural se determina como la suma de tres componentes, conforme a la metodología IGAC: <b>(1) suelo/tierra</b> por comparación de mercado de la zona homogénea; <b>(2) cultivos permanentes</b> por valor presente de la renta neta de su vida útil restante (Art. 2 y 31); y <b>(3) mejoras e infraestructura</b> por costo de reposición depreciado (Art. 3).</p>
+  <table>
+   <tr><th style="width:23%">1 · Tierra (suelo)</th><td>${tc.n?`Comparación de mercado del sector: ${tc.n} comparable(s), $/m² promedio ${fmtP(tc.avg||0)} (${fmtP((tc.avg||0)*10000)}/ha) × ${(tc.area||0).toLocaleString("es-CO")} m²`:"Valor de mercado / residual del terreno"}</td><td style="text-align:right;width:18%"><b>${fmtP(E.ter||0)}</b></td></tr>
+   <tr><th>2 · Plantaciones</th><td>Cultivos permanentes — VPN de renta neta por vida útil restante (tasa ${tasa}% real)</td><td style="text-align:right"><b>${fmtP(E.pl||0)}</b></td></tr>
+   <tr><th>3 · Infraestructura / mejoras</th><td>Construcciones y mejoras por costo de reposición depreciado (Fitto-Corvini)</td><td style="text-align:right"><b>${fmtP(E.infra||0)}</b></td></tr>
+   ${E.mob?`<tr><th>Mobiliario</th><td>Bienes muebles depreciados (Art. 137 E.T.)</td><td style="text-align:right"><b>${fmtP(E.mob)}</b></td></tr>`:""}
+   <tr style="background:#f6f1e3"><th>VALOR TOTAL DEL PREDIO</th><td></td><td style="text-align:right"><b>${fmtP(E.total)}</b></td></tr>
+  </table>
+  <p style="font-size:10px;font-weight:700;margin:4px 0">SON: ${numALetras(Math.round(E.total))} PESOS MCTE</p>
+  ${plTbl?`<h3 style="font-size:12px;margin-top:6px">Detalle de plantaciones</h3>${plTbl}<p style="font-size:8.5px;color:#777">Valoración por capitalización de la renta neta de la vida útil restante; cultivo en desarrollo por costo de establecimiento acumulado. Densidad/vida útil/renta calibradas con fuentes (IGAC Res.620; Borrero — Lonja de Medellín 2024; Finagro/Corpohass; estudio de costos café 2023). <b>Sujeto a inventario técnico y verificación en campo</b> (conteo, edad, densidad efectiva, estado fitosanitario).</p>`:""}`;
+}
+function anexosReportHTML(){const A=window.__anexos||[];if(!A.length)return"";
+  let n=0;return A.map(a=>a.pages.map((pg,k)=>{n++;return `<div class="pgbrk"></div><div style="text-align:center"><div style="font-size:11px;font-weight:700;margin:4px 0">Anexo ${n} — ${a.nombre}${a.pages.length>1?` (pág. ${k+1}/${a.pages.length})`:""}</div><img src="${pg}" style="max-width:100%;max-height:930px;border:1px solid #999"></div>`;}).join("")).join("");}
+let __pdfjsReady=null;
+function ensurePdfJs(){if(__pdfjsReady)return __pdfjsReady;__pdfjsReady=new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";s.onload=()=>{try{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";}catch(e){}res(window.pdfjsLib);};s.onerror=()=>rej(new Error("pdfjs"));document.head.appendChild(s);});return __pdfjsReady;}
+async function cargarAnexos(input){const prev=document.getElementById("anexosPrev");window.__anexos=window.__anexos||[];
+  try{await ensurePdfJs();}catch(e){if(prev)prev.textContent="No se pudo cargar el lector de PDF (revisa la conexión).";return;}
+  for(const file of [...input.files]){if(prev)prev.textContent="Procesando "+file.name+"…";
+    try{const buf=await file.arrayBuffer();const pdf=await pdfjsLib.getDocument({data:buf}).promise;const pages=[];const maxP=Math.min(pdf.numPages,12);
+      for(let p=1;p<=maxP;p++){const page=await pdf.getPage(p);const v0=page.getViewport({scale:1});const scale=Math.min(1.6,1100/v0.width);const vp=page.getViewport({scale});
+        const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;pages.push(cv.toDataURL("image/jpeg",0.7));}
+      window.__anexos.push({nombre:file.name.replace(/\.pdf$/i,""),pages});
+    }catch(e){if(prev)prev.textContent="Error leyendo "+file.name+" (¿PDF protegido?).";continue;}
+  }
+  input.value="";renderAnexos();}
+function renderAnexos(){const prev=document.getElementById("anexosPrev");const A=window.__anexos||[];if(!prev)return;
+  prev.innerHTML=A.length?A.map((a,i)=>`📎 <b>${a.nombre}</b> (${a.pages.length} pág.) <b style="color:var(--red);cursor:pointer" onclick="window.__anexos.splice(${i},1);renderAnexos()">✕</b>`).join("<br>"):"";}
 // --- narrativa de la zona ---
 function descZonaTexto(sec,s){
   if(!sec)return"";const p=[];
@@ -2100,7 +2212,7 @@ function imprimirInforme(){if(!lastCalc||!lastCalc.out)return alert("Primero cal
   <tr><th>Matrícula inmobiliaria</th><td>${s.matr||"Por verificar"}</td><th>Propietario</th><td>${s.solic||"Por verificar"}</td></tr>
   <tr><th>Municipio / Depto</th><td>${s.ciudad||"Armenia"} / ${s.depto||"Quindío"}</td><th>Sector (barrio)</th><td>${sec?sec.nombre:"—"}</td></tr>
   ${okNum(oLat)?`<tr><th>Coordenadas</th><td colspan="3">${oLat.toFixed(6)}, ${oLng.toFixed(6)} · <a href="https://www.google.com/maps?q=${oLat},${oLng}">ver en Google Maps</a></td></tr>`:""}</table>
-  ${mapaHTML?`<div style="text-align:center"><div style="font-size:11px;font-weight:700;margin-top:4px">Mapa de ubicación del predio</div>${mapaHTML}<div style="font-size:8px;color:#777">Mapa base © OpenStreetMap · CARTO. Ubicación referencial del predio objeto del avalúo.</div></div>`:""}
+  ${mapaHTML?`<div style="text-align:center"><div style="font-size:11px;font-weight:700;margin-top:4px">Localización del predio (imagen satelital)</div>${mapaHTML}<div style="font-size:8px;color:#777">Imagen satelital © Esri, Maxar, Earthstar Geographics${okNum(oLat)?` · Punto: ${oLat.toFixed(6)}, ${oLng.toFixed(6)} · <a href="https://www.google.com/maps?q=${oLat},${oLng}" target="_blank">Ver en Google Maps</a>`:""}. Ubicación referencial del predio objeto del avalúo.</div></div>`:""}
   <h2>2. Metodología avaluatoria y justificación</h2>
   <p>Se aplica el <b>método de comparación o de mercado</b> (Art. 1, Resolución 620 de 2008 del IGAC), técnica idónea para vivienda urbana y locales con mercado activo de ofertas comparables. Se investigan ofertas recientes de inmuebles semejantes, se filtran por <b>% de similitud</b> (4 características × 25%), se <b>homogenizan</b> con factores multiplicativos (rango 0,90–1,10) y se obtiene el valor por m² mediante media y desviación estándar (banda ±1σ).</p>
   <h2>3. Marco jurídico</h2>
@@ -2155,6 +2267,7 @@ function imprimirInforme(){if(!lastCalc||!lastCalc.out)return alert("Primero cal
   <table><tr><th>Escenario</th><th>% anual</th><th>Valor a 3 años</th><th>Valor a 5 años</th></tr>
   ${lastCalc.plus.tabla.map(e=>`<tr><td>${e.n}</td><td>${e.p}%</td><td>${fmtP(e.v3)}</td><td><b>${fmtP(e.v5)}</b></td></tr>`).join("")}</table>
   <p style="font-size:9px">Escenarios indicativos calibrados con la tendencia documentada del sector (${lastCalc.plus.sec}) y los proyectos en construcción georreferenciados. No constituyen promesa de rentabilidad.</p>`:""}
+  ${ruralReportHTML()}
   ${avFotos.length>1?`<div class="pgbrk"></div>${mb}<h2>11. Registro fotográfico</h2><div style="display:flex;flex-wrap:wrap;gap:8px">${avFotos.map((f,i)=>`<div style="width:31%"><img src="${f}" style="width:100%;border:1px solid #999;border-radius:4px"><div style="font-size:8.5px;text-align:center;color:#555">Foto ${i+1}</div></div>`).join("")}</div>`:""}
   ${(function(){ // v6.4 · ANEXO PROBATORIO — trazabilidad de cada muestra
     const FT={propia:"Fuente propia C21 DAB",aliada:"Inmobiliaria aliada",fsbo:"Propietario directo (FSBO)",portal:"Portal inmobiliario",manual:"Ingreso del perito"};
@@ -2198,7 +2311,8 @@ function imprimirInforme(){if(!lastCalc||!lastCalc.out)return alert("Primero cal
     </div>
   </div>
   ${aprobado?`<div style="margin-top:14px;display:inline-block;border:2px solid #1b3a6b;color:#1b3a6b;border-radius:7px;padding:6px 12px;font-size:9px;text-align:center;transform:rotate(-4deg);opacity:.85">
-    <b style="font-size:11px">CENTURY 21 DAB</b><br>PERITO AVALUADOR<br>${PERITO.aval}<br>RAA · ANAV</div>`:""}`;
+    <b style="font-size:11px">CENTURY 21 DAB</b><br>PERITO AVALUADOR<br>${PERITO.aval}<br>RAA · ANAV</div>`:""}
+  ${anexosReportHTML()}`;
   window.print();
   if(typeof renderAprobaciones==="function")renderAprobaciones();}
 
