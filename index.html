@@ -449,14 +449,14 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
         <div class="bd">
           <div class="avform">
             <div class="full"><label>Dirección / Conjunto</label><input id="sjDir" placeholder="Ej: Cra 14 # 50N-32, Tres Nevados"></div>
-            <div><label>Ciudad / Municipio</label><select id="sjCiudad" onchange="sectoresPorMunicipio()"><option>Armenia</option><option>Buenavista</option><option>Calarcá</option><option>Circasia</option><option>Córdoba</option><option>Filandia</option><option>Génova</option><option>La Tebaida</option><option>Montenegro</option><option>Pijao</option><option>Quimbaya</option><option>Salento</option><option>Pereira</option><option>Dosquebradas</option><option>Otra</option></select></div>
-            <div><label>Departamento</label><input id="sjDepto" value="Quindío" placeholder="Quindío"></div>
+            <div><label>Ciudad / Municipio</label><input id="sjCiudad" list="munDatalist" placeholder="Municipio (escribe o elige)" autocomplete="off" onchange="onMuniChange();aprenderLoc()" oninput="onMuniChange()"><datalist id="munDatalist"></datalist></div>
+            <div><label>Departamento</label><select id="sjDepto" onchange="onDeptoChange()"></select></div>
             <div class="full"><label>📍 Ubicación exacta del predio</label>
               <div style="display:flex;gap:6px;align-items:center"><input id="sjCoord" readonly placeholder="Sin ubicar — usa el botón" style="flex:1;background:var(--inbg)">
               <button type="button" class="btnGold" style="padding:6px 12px;white-space:nowrap" onclick="abrirUbicador()">📍 Ubicar en el mapa</button></div>
               <div id="sjCoordMsg" style="font-size:9.5px;color:var(--muted);margin-top:3px">Fija el punto exacto del predio para medir mejor la cercanía de los comparables.</div></div>
             <div><label>Tipo</label><select id="sjTipo"><option>Apartamento</option><option>Casa</option><option>Local</option><option>Casa campestre</option><option>Finca</option><option>Lote</option></select></div>
-            <div><label>Sector (Atlas)</label><select id="sjSector"></select></div>
+            <div><label>Sector / Vereda</label><input id="sjSector" list="verDatalist" placeholder="Sector o vereda (escribe o elige)" autocomplete="off" onchange="aprenderLoc()"><datalist id="verDatalist"></datalist></div>
             <div><label id="lbArea">Área privada (m²)</label><input id="sjArea" type="number" min="1" placeholder="55"></div>
             <div><label>Estrato</label><select id="sjEstrato"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></div>
             <div><label>Habitaciones</label><input id="sjHab" type="number" min="0" value="3"></div>
@@ -467,6 +467,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
             <div><label>Conservación (Fitto-Corvini)</label><select id="sjCons"><option value="1">Clase 1 · Óptimo</option><option value="2" selected>Clase 2 · Bueno</option><option value="3">Clase 3 · Reparaciones sencillas</option><option value="4">Clase 4 · Reparaciones importantes</option><option value="5">Clase 5 · Ruina</option></select></div>
             <div class="full"><label>Solicitante / Propietario</label><input id="sjSolic" placeholder="Nombre del cliente"></div>
             <div class="full"><label>Matrícula inmobiliaria</label><input id="sjMatr" placeholder="280-XXXXX"></div>
+            <div><label>Fecha del avalúo (opcional)</label><input id="sjFecha" type="date"></div>
             <div class="full"><label>📷 Registro fotográfico (hasta 8 fotos — la 1ª será la portada del informe)</label><input id="sjFotos" type="file" accept="image/*" multiple><div id="fotosPrev" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"></div></div>
             <div class="full"><label>📎 Anexos PDF (certificado de tradición, planos, escritura…) — se agregan al final del informe</label><input id="sjAnexos" type="file" accept="application/pdf" multiple onchange="cargarAnexos(this)"><div id="anexosPrev" style="font-size:10.5px;color:var(--muted);margin-top:5px"></div></div>
           </div>
@@ -1024,10 +1025,11 @@ function citySubline(){const D=CITIES[activeCity];return PH_ALL.length+" PH · "
 function initCityUI(){
   const D=CITIES[activeCity];
   const tt=document.getElementById("cityTitle");if(tt)tt.textContent="Atlas Inmobiliario Vivo — "+(activeCity==="amco"?"Pereira–Dosquebradas":"Armenia");
-  const sjs=document.getElementById("sjSector");if(sjs)sjs.innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");
+  try{initDepto();}catch(e){}
   const acs=document.getElementById("acSector");if(acs)acs.innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");
   const sjc=document.getElementById("sjCiudad");if(sjc)sjc.value=D.ciudadDefault||"Armenia";
   const sjd=document.getElementById("sjDepto");if(sjd)sjd.value=D.depto||"Quindío";
+  try{onDeptoChange();}catch(e){}
   const cz=document.getElementById("capZona");if(cz)cz.innerHTML='<option value="">Todas las zonas</option>'+(D.zonas||[]).map(z=>`<option>${z}</option>`).join("");
   safeRun(()=>{const counts={};allItems().forEach(d=>{const t=d.tipoStd||tipoStd(d);counts[t]=(counts[t]||0)+1;});const ft=document.getElementById("fTipo");if(ft){const cur=ft.value;ft.innerHTML='<option value="">Todos</option>'+TIPOS.filter(t=>counts[t]).map(t=>`<option value="${t}">${t} (${counts[t]})</option>`).join("");ft.value=cur;}},"fTipo");
   buildZonaChips();
@@ -1650,7 +1652,7 @@ function renderResultado(){
   const simProm=comps.reduce((a,c)=>a+c.sim.total,0)/comps.length;
   const adop=document.getElementById("avAdop")?document.getElementById("avAdop").value:"prom";
   const vAdop=adop==="max"?vMax:(adop==="min"?vMin:vProm);
-  const sec=secById[s.sector];
+  const sec=secResolve(s.sector);
   let sanity="";
   if(sec){const pm2a=vAdop/s.area;
     if(pm2a>sec.m2_max*1.25)sanity=`⚠ El valor adoptado (${fmtP(pm2a)}/m²) supera en >25% el tope del sector ${sec.nombre} (${fmtP(sec.m2_max)}/m²). Revisa comparables.`;
@@ -1703,7 +1705,7 @@ function descartarComp(idx){if(!lastCalc)return;
   renderResultado();}
 // M15: plusvalía — drivers georreferenciados (proyectos sobre planos cercanos) + escenarios 3-5 años
 function plusvalia(){if(!lastCalc||!lastCalc.out)return alert("Primero calcula el avalúo.");
-  const s=lastCalc.s,sec=secById[s.sector];if(!sec)return alert("Selecciona el sector del sujeto.");
+  const s=lastCalc.s,sec=secResolve(s.sector);if(!sec)return alert("Selecciona el sector del sujeto.");
   const drivers=PLANOS_ALL.filter(p=>okNum(p.lat)&&distM(p.lat,p.lng,sec.lat,sec.lng)<=1500)
     .map(p=>({p,dist:Math.round(distM(p.lat,p.lng,sec.lat,sec.lng))})).sort((a,b)=>a.dist-b.dist).slice(0,8);
   const alza=/fuerte|m[áa]s alta|al alza/i.test(sec.valorizacion||"");
@@ -1802,6 +1804,23 @@ function sectoresPorMunicipio(){const sjs=document.getElementById("sjSector");if
   if(!mun||/armenia|pereira|dosquebradas/.test(mn)){sjs.innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");return;}
   const key=Object.keys(VEREDAS_QUINDIO).find(k=>norm(k)===mn);const ver=key?VEREDAS_QUINDIO[key]:[];
   sjs.innerHTML=(ver.length?ver.map(v=>`<option value="${v}">${v}</option>`).join(""):'<option value="">(vereda no listada — escríbela en Dirección o usa 📍 Ubicar)</option>')+'<option value="">Otra / no listada</option>';}
+// ===== Cascada Departamento → Municipio → Sector/Vereda (escribible + aprende) =====
+const DEPTOS_CO=["Amazonas","Antioquia","Arauca","Atlántico","Bolívar","Boyacá","Caldas","Caquetá","Casanare","Cauca","Cesar","Chocó","Córdoba","Cundinamarca","Guainía","Guaviare","Huila","La Guajira","Magdalena","Meta","Nariño","Norte de Santander","Putumayo","Quindío","Risaralda","San Andrés y Providencia","Santander","Sucre","Tolima","Valle del Cauca","Vaupés","Vichada"];
+const MUNI_SEED={"Quindío":["Armenia","Buenavista","Calarcá","Circasia","Córdoba","Filandia","Génova","La Tebaida","Montenegro","Pijao","Quimbaya","Salento"],"Risaralda":["Apía","Balboa","Belén de Umbría","Dosquebradas","Guática","La Celia","La Virginia","Marsella","Mistrató","Pereira","Pueblo Rico","Quinchía","Santa Rosa de Cabal","Santuario"]};
+const LS_LOC="c21dab_loc";
+function locMem(){try{return JSON.parse(localStorage.getItem(LS_LOC)||"{}");}catch(e){return {};}}
+function locSave(m){try{localStorage.setItem(LS_LOC,JSON.stringify(m));}catch(e){}}
+function secResolve(v){if(!v)return null;if(typeof secById!=="undefined"&&secById[v])return secById[v];const n=norm(v);return (typeof SEC!=="undefined"?SEC:[]).find(s=>norm(s.nombre)===n||norm(s.id)===n)||null;}
+function fillDL(id,items){const dl=document.getElementById(id);if(dl)dl.innerHTML=[...new Set(items)].filter(Boolean).map(v=>'<option value="'+(""+v).replace(/"/g,'&quot;')+'"></option>').join("");}
+function initDepto(){const sel=document.getElementById("sjDepto");if(sel&&sel.tagName==="SELECT"&&sel.options.length<2)sel.innerHTML=DEPTOS_CO.map(d=>'<option'+(d==="Quindío"?' selected':'')+'>'+d+'</option>').join("");}
+function muniSugeridos(dep){return (MUNI_SEED[dep]||[]).concat((locMem().muni&&locMem().muni[norm(dep)])||[]);}
+function veredaSugeridas(mun){const mn=norm(mun);let a=[];const k=Object.keys(VEREDAS_QUINDIO).find(x=>norm(x)===mn);if(k)a=a.concat(VEREDAS_QUINDIO[k]);if(/armenia|pereira|dosquebradas/.test(mn)&&typeof SEC!=="undefined")a=a.concat(SEC.map(s=>s.nombre));return a.concat((locMem().ver&&locMem().ver[mn])||[]);}
+function onDeptoChange(){const dep=(document.getElementById("sjDepto")||{}).value||"Quindío";fillDL("munDatalist",muniSugeridos(dep));onMuniChange();}
+function onMuniChange(){const mun=(document.getElementById("sjCiudad")||{}).value||"";fillDL("verDatalist",veredaSugeridas(mun));}
+function aprenderLoc(){const m=locMem();const dep=norm((document.getElementById("sjDepto")||{}).value||"");const mun=((document.getElementById("sjCiudad")||{}).value||"").trim();const ver=((document.getElementById("sjSector")||{}).value||"").trim();
+  if(dep&&mun){m.muni=m.muni||{};m.muni[dep]=[...new Set((m.muni[dep]||[]).concat([mun]))];}
+  if(mun&&ver){m.ver=m.ver||{};const mn=norm(mun);m.ver[mn]=[...new Set((m.ver[mn]||[]).concat([ver]))];}
+  locSave(m);try{onDeptoChange();}catch(e){}}
 // ===== PLANTACIONES / cultivos permanentes (Res.620 Art.2 y 31 · VPN de vida útil restante) =====
 // Defaults reales (Colombia/Quindío 2024-26): dens=plantas/ha · vida=años útil prod · entrada=años a producir · renta=utilidad neta $/ha/año · estab=costo establecimiento $/ha
 const CULTIVOS_REF={
@@ -1888,7 +1907,7 @@ function buscarComparables(){const s=getSujeto();
     ["MercadoLibre (dueño directo)",`https://listado.mercadolibre.com.co/inmuebles/${tML}/venta/quindio/armenia/_Vendedor_dueno-directo`],
     ["Ciencuadras",`https://www.ciencuadras.com/venta/armenia`],
     ["Properati",`https://www.properati.com.co/s/armenia-quindio1/${s.tipo==="Casa"?"casa":"apartamento"}/venta`]];
-  const sec=secById[s.sector];
+  const sec=secResolve(s.sector);
   const gmaps=sec&&okNum(sec.lat)?`<a href="https://www.google.com/maps/search/${encodeURIComponent((s.tipo||"apartamento")+" venta "+sec.nombre+" "+((CITIES[activeCity]&&CITIES[activeCity].ciudadDefault)||"Armenia"))}/@${sec.lat},${sec.lng},15z" target="_blank" style="color:var(--blue)">📍 Google Maps (zona ${sec.nombre})</a>`:"";
   document.getElementById("portalLinks").innerHTML=`<b>Comparables de portales — ${s.tipo}${s.area?" ~"+s.area+" m²":""}${sec?" en "+sec.nombre:""}:</b><br>`+links.map(l=>`<a href="${l[1]}" target="_blank" style="color:var(--blue)">🌐 ${l[0]}</a>`).join(" · ")+(gmaps?" · "+gmaps:"");}
 // v5.9: ANÁLISIS PREMIUM C21 — toda la inteligencia transaccional del sector de un predio
@@ -1964,7 +1983,7 @@ function abrirUbicador(){
   const ciudad=(document.getElementById("sjCiudad").value||"Armenia").toLowerCase();
   let c=[-75.681,4.535];
   if(sjLat&&sjLng)c=[sjLng,sjLat];
-  else{const sec=secById[document.getElementById("sjSector").value];if(sec&&okNum(sec.lat))c=[sec.lng,sec.lat];
+  else{const sec=secResolve(document.getElementById("sjSector").value);if(sec&&okNum(sec.lat))c=[sec.lng,sec.lat];
     else{const m=(QMUN||[]).find(x=>norm(x.nombre).startsWith(norm(ciudad).split(" ")[0]));if(m)c=[m.lng,m.lat];}}
   setTimeout(()=>{
     if(!ubMap){
@@ -2053,7 +2072,7 @@ function famCompatible(a,b){ // b=familia del SUJETO, a=familia del candidato. R
   const grupo={casa:["casa"],apto:["apto"],finca:["finca","casa"],comercial:["comercial"],lote:["lote"],otro:["otro","casa","apto","finca","comercial","lote"]};
   return (grupo[b]||[b]).includes(a);}
 function autoCompsJAB(silent){
-  const s=getSujeto();const sec=secById[s.sector];
+  const s=getSujeto();const sec=secResolve(s.sector);
   const msg=document.getElementById("autoCompMsg");
   if(!sec||!okNum(sec.lat)){if(msg)msg.innerHTML="⚠ Selecciona un sector con ubicación.";return 0;}
   const fam=tipoFamilia(s.tipo);
@@ -2081,7 +2100,7 @@ function avaluarDesde(id){const d=allItems().find(x=>x.id===id);if(!d)return;
   showTab("vaval");
   document.getElementById("sjDir").value=(d.nombre||"")+(d.dir?" — "+d.dir:"");
   if(d.estrato&&String(d.estrato).length===1)document.getElementById("sjEstrato").value=String(d.estrato);
-  const sec=nearestSector(d);if(sec)document.getElementById("sjSector").value=sec.id;
+  const sec=nearestSector(d);if(sec)document.getElementById("sjSector").value=sec.nombre;
   if(d.tipo==="Casas")document.getElementById("sjTipo").value="Casa";}
 // Guardar / cargar avalúos
 const LS_AV="c21dab_avaluos";let avSaved={};
@@ -2190,7 +2209,7 @@ function supaPushAvEstado(id){if(!supa||!AVAP[id])return;
 function registrarAvaluo(s,out){
   if(!lastCalc._id)lastCalc._id=genAvId();
   const id=lastCalc._id, prev=AVAP[id]||{};
-  AVAP[id]=Object.assign({id,dir:s.dir||"—",sector:(secById[s.sector]||{}).nombre||"—",ciudad:s.ciudad||"Armenia",depto:s.depto||"Quindío",valor:out.vAdop,cv:out.cvPct,agente:supaAgente||"local",fecha:prev.fecha||new Date().toISOString()},
+  AVAP[id]=Object.assign({id,dir:s.dir||"—",sector:(secResolve(s.sector)||{}).nombre||"—",ciudad:s.ciudad||"Armenia",depto:s.depto||"Quindío",valor:out.vAdop,cv:out.cvPct,agente:supaAgente||"local",fecha:prev.fecha||new Date().toISOString()},
     prev.estado==="aprobado"?{estado:"aprobado",aprobado_por:prev.aprobado_por,aprobado_fecha:prev.aprobado_fecha,consecutivo:prev.consecutivo}:{estado:"pendiente"});
   saveAVAP();supaPushAvEstado(id);return AVAP[id];
 }
@@ -2215,7 +2234,7 @@ function renderAprobaciones(){const c=document.getElementById("apBody");if(!c)re
 }
 
 function imprimirInforme(){if(!lastCalc||!lastCalc.out)return alert("Primero calcula un avalúo.");
-  const {s,comps,out}=lastCalc;const sec=secById[s.sector];const hoy=new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
+  const {s,comps,out}=lastCalc;const sec=secResolve(s.sector);const _fE=document.getElementById("sjFecha");const hoy=(_fE&&_fE.value)?new Date(_fE.value+"T12:00:00").toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"}):new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
   const just=(document.getElementById("avJust")||{}).value||"";
   // v6.2 · control del avaluador: todo avalúo se registra y debe aprobarse antes de salir firmado
   const reg=registrarAvaluo(s,out);let aprobado=reg.estado==="aprobado";
@@ -2561,7 +2580,7 @@ function acmCalcular(){
 function acmAlAvaluador(){if(!lastACM)return;showTab("vaval");
   document.getElementById("sjDir").value=lastACM.dir||"";
   document.getElementById("sjArea").value=lastACM.area||"";
-  if(lastACM.sec)document.getElementById("sjSector").value=lastACM.sec.id;
+  if(lastACM.sec)document.getElementById("sjSector").value=lastACM.sec.nombre;
   document.getElementById("sjHab").value=lastACM.hab||3;document.getElementById("sjBan").value=lastACM.ban||2;document.getElementById("sjParq").value=lastACM.parq||1;}
 function acmImprimir(){if(!lastACM)return alert("Primero calcula el ACM.");
   const L=lastACM,hoy=new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
@@ -2727,7 +2746,7 @@ function download(name,content,type){const a=document.createElement("a");a.href=
 
 // ============ INIT (cada sección blindada) ============
 function safeRun(fn,n){try{fn();}catch(e){console.error(n,e);const b=document.getElementById("errbar");b.style.display="block";b.textContent="⚠ Error en "+n+": "+e.message;}}
-safeRun(()=>{document.getElementById("sjSector").innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");for(let i=0;i<3;i++)addComp();
+safeRun(()=>{(function(){try{initDepto();onDeptoChange();}catch(e){}})();for(let i=0;i<3;i++)addComp();
   const fi=document.getElementById("sjFotos");
   if(fi)fi.addEventListener("change",async()=>{for(const f of [...fi.files].slice(0,8-avFotos.length)){avFotos.push(await comprimirFoto(f));}renderFotos();fi.value="";});
   if(avFirma){const p=document.getElementById("firmaPrev");if(p){p.src=avFirma;p.style.display="inline-block";}}},"avaluador");
