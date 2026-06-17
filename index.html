@@ -579,7 +579,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
 <!-- ================= CONTACTOS ================= -->
 <div class="view" id="vbuscar">
   <div class="tablewrap">
-    <div class="notice"><b>🔎 Buscar para un cliente</b> — define lo que pide y el Atlas cruza al instante el inventario propio (Comercialización + Administradas C21), el de inmobiliarias aliadas y los FSBO de dueño directo. Ej.: "casa en el centro, hasta $200M, 3 habitaciones".</div>
+    <div class="notice"><b>🔎 Buscar para un cliente</b> — define lo que pide y el Atlas cruza al instante el inventario propio en comercialización (venta/renta), el de inmobiliarias aliadas y los FSBO de dueño directo. <i>No incluye las administradas (ya están en renta).</i> Ej.: "casa en el centro, hasta $200M, 3 habitaciones".</div>
     <div class="filters" style="background:rgba(13,19,34,.5)">
       <label>Operación</label><select id="bcOp"><option value="">Venta y Renta</option><option>Venta</option><option>Renta</option></select>
       <label>Inventario</label><select id="bcFuente"><option value="">Todo</option><option value="dab">Solo C21 DAB (nuestro)</option><option value="c21">Cualquier C21</option></select>
@@ -1363,7 +1363,6 @@ function buscarCliente(){
   const fuenteWant=val("bcFuente");
   const pool=[];
   capaExtra(COM_C21,"com","com").forEach(d=>pool.push({d,clase:d.esDAB?"dab":"c21otra",fuente:d.esDAB?"🏠 C21 DAB":"🏢 "+(d.oficina||"Otra C21"),contacto:d.contacto||"Oficina C21 DAB",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
-  capaExtra(ADMIN_C21,"adm","adm").forEach(d=>pool.push({d,clase:"dab",fuente:"🔑 C21 DAB (administrada)",contacto:d.contacto||"Oficina C21 DAB",valor:d.canon?d.canon*200:null,op:"Renta",url:d.url}));
   capaExtra(ALIADAS,"ali","ali").forEach(d=>pool.push({d,clase:"aliada",fuente:"🤝 Aliada: "+(d.inmobiliaria||"?"),contacto:d.contacto||d.inmobiliaria||"",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
   (FSBO_ALL||[]).forEach(f=>pool.push({d:f,clase:"fsbo",fuente:"🚨 FSBO dueño directo",contacto:f.portal||"",valor:f.precio||null,op:f.op==="Arriendo"?"Renta":"Venta",url:f.url}));
   const res=pool.filter(x=>{
