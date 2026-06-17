@@ -582,6 +582,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
     <div class="notice"><b>🔎 Buscar para un cliente</b> — define lo que pide y el Atlas cruza al instante el inventario propio (Comercialización + Administradas C21), el de inmobiliarias aliadas y los FSBO de dueño directo. Ej.: "casa en el centro, hasta $200M, 3 habitaciones".</div>
     <div class="filters" style="background:rgba(13,19,34,.5)">
       <label>Operación</label><select id="bcOp"><option value="">Venta y Renta</option><option>Venta</option><option>Renta</option></select>
+      <label>Inventario</label><select id="bcFuente"><option value="">Todo</option><option value="dab">Solo C21 DAB (nuestro)</option><option value="c21">Cualquier C21</option></select>
       <label>Tipo</label><select id="bcTipo"><option value="">Cualquiera</option></select>
       <label>Zona</label><select id="bcSector"><option value="">Cualquier zona</option></select>
       <label>Presupuesto máx $</label><input id="bcPres" type="number" placeholder="200000000" style="width:125px">
@@ -1359,13 +1360,16 @@ function buscarCliente(){
   const op=val("bcOp"),tipo=val("bcTipo"),pres=parseFloat(val("bcPres"))||0,habMin=parseInt(val("bcHab"))||0,estr=val("bcEstrato");
   const zonaWant=norm(val("bcSector")||"");
   const fam=tipo?tipoFamilia(tipo):null;
+  const fuenteWant=val("bcFuente");
   const pool=[];
-  capaExtra(COM_C21,"com","com").forEach(d=>pool.push({d,fuente:"🏠 C21 Comercialización",contacto:d.contacto||"Oficina C21 DAB",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
-  capaExtra(ADMIN_C21,"adm","adm").forEach(d=>pool.push({d,fuente:"🔑 C21 Administrada",contacto:d.contacto||"Oficina C21 DAB",valor:d.canon?d.canon*200:null,op:"Renta",url:d.url}));
-  capaExtra(ALIADAS,"ali","ali").forEach(d=>pool.push({d,fuente:"🤝 Aliada: "+(d.inmobiliaria||"?"),contacto:d.contacto||d.inmobiliaria||"",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
-  (FSBO_ALL||[]).forEach(f=>pool.push({d:f,fuente:"🚨 FSBO dueño directo",contacto:f.portal||"",valor:f.precio||null,op:f.op==="Arriendo"?"Renta":"Venta",url:f.url}));
+  capaExtra(COM_C21,"com","com").forEach(d=>pool.push({d,clase:d.esDAB?"dab":"c21otra",fuente:d.esDAB?"🏠 C21 DAB":"🏢 "+(d.oficina||"Otra C21"),contacto:d.contacto||"Oficina C21 DAB",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
+  capaExtra(ADMIN_C21,"adm","adm").forEach(d=>pool.push({d,clase:"dab",fuente:"🔑 C21 DAB (administrada)",contacto:d.contacto||"Oficina C21 DAB",valor:d.canon?d.canon*200:null,op:"Renta",url:d.url}));
+  capaExtra(ALIADAS,"ali","ali").forEach(d=>pool.push({d,clase:"aliada",fuente:"🤝 Aliada: "+(d.inmobiliaria||"?"),contacto:d.contacto||d.inmobiliaria||"",valor:parseFloat(d.valor||d.precio)||null,op:d.operacion==="Renta"?"Renta":"Venta",url:d.url}));
+  (FSBO_ALL||[]).forEach(f=>pool.push({d:f,clase:"fsbo",fuente:"🚨 FSBO dueño directo",contacto:f.portal||"",valor:f.precio||null,op:f.op==="Arriendo"?"Renta":"Venta",url:f.url}));
   const res=pool.filter(x=>{
     if(op&&x.op!==op)return false;
+    if(fuenteWant==="dab"&&x.clase!=="dab")return false;
+    if(fuenteWant==="c21"&&!(x.clase==="dab"||x.clase==="c21otra"))return false;
     if(fam&&!famCompatible(tipoFamilia(x.d.tipo,x.d.tipoStd||x.d.categoria||x.d.nombre),fam))return false;
     if(habMin&&(parseInt(x.d.hab)||0)<habMin)return false;
     if(estr&&String(x.d.estrato||"").indexOf(estr)<0)return false;
@@ -1373,8 +1377,8 @@ function buscarCliente(){
     if(pres&&x.valor&&x.valor>pres)return false;
     return true;
   }).sort((a,b)=>(a.valor||9e15)-(b.valor||9e15));
-  const c21=res.filter(x=>/C21/.test(x.fuente)).length,ali=res.filter(x=>/Aliada/.test(x.fuente)).length,fsbo=res.filter(x=>/FSBO/.test(x.fuente)).length;
-  document.getElementById("bcKpis").innerHTML=[["Resultados",res.length],["C21 propio",c21],["Aliadas",ali],["FSBO",fsbo]].map(k=>`<div class="stat"><div class="v">${k[1]}</div><div class="l">${k[0]}</div></div>`).join("");
+  const dab=res.filter(x=>x.clase==="dab").length,c21o=res.filter(x=>x.clase==="c21otra").length,ali=res.filter(x=>x.clase==="aliada").length,fsbo=res.filter(x=>x.clase==="fsbo").length;
+  document.getElementById("bcKpis").innerHTML=[["Resultados",res.length],["C21 DAB",dab],["Otras C21",c21o],["Aliadas",ali],["FSBO",fsbo]].map(k=>`<div class="stat"><div class="v">${k[1]}</div><div class="l">${k[0]}</div></div>`).join("");
   document.getElementById("bcResultados").innerHTML=res.length?'<table class="comps"><thead><tr><th>Inmueble</th><th>Tipo</th><th>Área</th><th>Hab/Bañ</th><th>Zona</th><th>Op.</th><th>Valor</th><th>Fuente</th><th>Contacto</th><th>Aviso</th><th>Mapa</th></tr></thead><tbody>'+res.slice(0,200).map(x=>{const d=x.d;return `<tr><td><b>${d.nombre||d.titulo||d.dir||"Inmueble"}</b></td><td>${d.tipo||d.tipoStd||"—"}</td><td>${d.area||"?"} m²</td><td>${d.hab||"?"}/${d.ban||"?"}</td><td>${d.zona||"—"}${d.municipio?" · "+d.municipio:""}</td><td>${x.op}</td><td><b>${x.valor?fmtP(x.valor):"—"}</b></td><td style="font-size:10px">${x.fuente}</td><td style="font-size:10px">${x.contacto||"—"}</td><td>${x.url?`<a href="${x.url}" target="_blank">🔗</a>`:"—"}</td><td>${okNum(d.lat)?`<a href="#" onclick="showTab('vmapa');setTimeout(function(){map.flyTo({center:[${d.lng},${d.lat}],zoom:16});},150);return false;">🗺</a>`:"—"}</td></tr>`;}).join("")+'</tbody></table>':'<div class="warn">Sin inventario que cumpla esos criterios. Amplía el presupuesto, quita la zona, o aún no hemos cargado ese inventario (la Comercialización C21 se carga desde century21colombia.com).</div>';
 }
 function openPanel(id){const d=allItems().find(x=>x.id===id);if(!d)return;
@@ -1382,7 +1386,7 @@ function openPanel(id){const d=allItems().find(x=>x.id===id);if(!d)return;
   const ventaEst=(d.capa==="adm"&&d.canon)?d.canon*200:null;
   // M17: tenencia — arriendos C21 conocidos en este conjunto (indicio de arrendatarios) — declarar ANTES de usarlo en rows
   const nd=norm(d.nombre),nAdm=ADMIN_C21.filter(a=>a.conjunto_match&&norm(a.conjunto_match)===nd).length;
-  const rows=[["Capa",CAPANAME[d.capa]],["Constructora",d.constructora],["Inmobiliaria",d.inmobiliaria],["Etapa comercial",d.etapa],["Dirección",d.dir],["Barrio / sector",d.barrio],["Municipio",d.municipio],["Zona",d.zona],["Tipo",d.tipo||d.categoria],["Tipo estándar",d.tipoStd||tipoStd(d)],["Torres / etapas",d.torres],["Pisos",d.pisos],["Estrato",d.estrato],["Año",d.anio],["Áreas (m²)",d.area],["Precios",d.precio],["Canon de renta",d.canon?fmtP(d.canon)+"/mes":null],["Venta estimada (canon×200)",ventaEst?fmtP(ventaEst):null],["Admin. PH (base 2019)",d.admin2019?d.admin2019+" ⚠ confirmar":null],["Arriendos C21 aquí (M17)",nAdm?nAdm+" administrados — alto indicio de arrendatarios: ofrecer administración":null],["Amenidades",d.amen],["Tags OSM",d.tags]]
+  const rows=[["Capa",CAPANAME[d.capa]],["Inventario",d.oficina?(d.esDAB?"🏠 CENTURY 21 DAB (nuestro)":d.oficina):null],["Constructora",d.constructora],["Inmobiliaria",d.inmobiliaria],["Etapa comercial",d.etapa],["Dirección",d.dir],["Barrio / sector",d.barrio],["Municipio",d.municipio],["Zona",d.zona],["Tipo",d.tipo||d.categoria],["Tipo estándar",d.tipoStd||tipoStd(d)],["Torres / etapas",d.torres],["Pisos",d.pisos],["Estrato",d.estrato],["Año",d.anio],["Áreas (m²)",d.area],["Precios",d.precio],["Canon de renta",d.canon?fmtP(d.canon)+"/mes":null],["Venta estimada (canon×200)",ventaEst?fmtP(ventaEst):null],["Admin. PH (base 2019)",d.admin2019?d.admin2019+" ⚠ confirmar":null],["Arriendos C21 aquí (M17)",nAdm?nAdm+" administrados — alto indicio de arrendatarios: ofrecer administración":null],["Amenidades",d.amen],["Tags OSM",d.tags]]
     .filter(r=>r[1]!=null&&r[1]!=="").map(r=>`<div class="frow"><div class="k">${r[0]}</div><div class="val">${r[1]}</div></div>`).join("");
   const sec=nearestSector(d);
   const esp=especialistaPara(d);
