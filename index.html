@@ -449,7 +449,7 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
         <div class="bd">
           <div class="avform">
             <div class="full"><label>Dirección / Conjunto</label><input id="sjDir" placeholder="Ej: Cra 14 # 50N-32, Tres Nevados"></div>
-            <div><label>Ciudad</label><input id="sjCiudad" value="Armenia" placeholder="Armenia"></div>
+            <div><label>Ciudad / Municipio</label><select id="sjCiudad" onchange="sectoresPorMunicipio()"><option>Armenia</option><option>Buenavista</option><option>Calarcá</option><option>Circasia</option><option>Córdoba</option><option>Filandia</option><option>Génova</option><option>La Tebaida</option><option>Montenegro</option><option>Pijao</option><option>Quimbaya</option><option>Salento</option><option>Pereira</option><option>Dosquebradas</option><option>Otra</option></select></div>
             <div><label>Departamento</label><input id="sjDepto" value="Quindío" placeholder="Quindío"></div>
             <div class="full"><label>📍 Ubicación exacta del predio</label>
               <div style="display:flex;gap:6px;align-items:center"><input id="sjCoord" readonly placeholder="Sin ubicar — usa el botón" style="flex:1;background:var(--inbg)">
@@ -527,6 +527,11 @@ try{if(localStorage.getItem("c21dab_mapstyle")==="light")document.body.classList
           <div class="avform"><div><label>Área del predio m²</label><input id="tcArea" type="number" placeholder="ej: 64000 (6,4 ha)" oninput="calcTComp()"></div></div>
           <table class="comps"><thead><tr><th>Comparable (sector)</th><th>Área m²</th><th>Precio total $</th><th>$/m²</th><th></th></tr></thead><tbody id="tcRows"></tbody></table>
           <div class="avbtns"><button class="btnGold" style="padding:4px 10px;font-size:10.5px" onclick="addTComp()">+ Comparable de tierra</button><span id="tcRes" style="font-weight:700;font-size:11px"></span></div>
+          <div style="margin-top:7px;padding:8px;border:1px dashed var(--gold);border-radius:6px">
+            <div style="font-size:10.5px;color:var(--gold-d);margin-bottom:4px">🔗 <b>Pega el aviso del portal</b> (Fincaraíz, MercadoLibre, Ciencuadras…): copia el texto del anuncio y/o el link y el Atlas extrae <b>precio y área</b> y lo agrega como comparable.</div>
+            <textarea id="tcPegar" rows="3" placeholder="Ej: Finca en venta en Buenavista, 5,5 hectáreas, $590.000.000 ... https://..." style="width:100%;padding:7px;border:1px solid var(--line);border-radius:6px;background:var(--inbg);color:var(--txt);font-size:12px;box-sizing:border-box"></textarea>
+            <div class="avbtns" style="margin-top:5px"><button class="btnGold" style="padding:4px 10px;font-size:10.5px" onclick="pegarComparableTierra()">➕ Extraer comparable del aviso</button><span id="tcPegarMsg" style="font-size:10.5px;color:var(--muted)"></span></div>
+          </div>
           <h3 style="font-size:12px;background:none;border:none;color:var(--cyan);padding:8px 0 4px">2 · Mobiliario (hoteles — Art. 137 E.T.)</h3>
           <div class="notice" style="font-size:10px">Por ítem: promedio de 3 cotizaciones × cantidad × (1 − %dep). Muebles/equipos 30% · electrónica 40%.</div>
           <table class="comps"><thead><tr><th>Ítem</th><th>Cant.</th><th>Vr comercial $</th><th>%Dep</th><th></th></tr></thead><tbody id="mobRows"></tbody></table>
@@ -1769,6 +1774,34 @@ function calcTComp(){let sum=0,n=0;for(let i=0;i<tcN;i++){const r=document.getEl
   if(out)out.innerHTML=n?`$/m² promedio del sector (n=${n}): <b>${fmtP(avg)}</b> · ${fmtP(avg*10000)}/ha × ${area.toLocaleString("es-CO")} m² = <b style="color:var(--gold)">${fmtP(vt)}</b>`:`Agrega comparables de tierra <b>del sector (Buenavista)</b> — Res.620 exige comparables de la misma zona homogénea.`;
   const t=document.getElementById("vtTerreno");if(t&&vt)t.value=Math.round(vt);
   window.__tierraComp={avg,area,vt,n};return vt;}
+function parseAreaM2(t){let m;
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*(?:hect[aá]reas?|h[aá]s?\b|\bha\b)/i);if(m)return Math.round(parseFloat(m[1].replace(',','.'))*10000);
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*cuadras?/i);if(m)return Math.round(parseFloat(m[1].replace(',','.'))*6400);
+  m=t.match(/([\d][\d.]*)\s*(?:m2|m²|mts2?|metros\s*cuadrados?)/i);if(m)return Math.round(parseFloat(m[1].replace(/\./g,'').replace(',','.')));
+  return 0;}
+function parsePrecioCOP(t){
+  const nums=(t.match(/\$?\s*\d[\d.,]{6,}/g)||[]).map(s=>parseInt(s.replace(/[^\d]/g,''),10)).filter(n=>n>=10000000&&n<=200000000000);
+  if(nums.length)return Math.max(...nums);
+  let m=t.match(/(\d+(?:[.,]\d+)?)\s*mil\s*millones/i);if(m)return Math.round(parseFloat(m[1].replace(',','.'))*1e9);
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*millones/i);if(m)return Math.round(parseFloat(m[1].replace(',','.'))*1e6);
+  return 0;}
+function pegarComparableTierra(){const t=(document.getElementById("tcPegar").value||"").trim();const msg=document.getElementById("tcPegarMsg");
+  if(!t){msg.style.color="#e07a5f";msg.textContent="Pega el texto del aviso (con $ y m²/ha/cuadras).";return;}
+  const area=parseAreaM2(t),precio=parsePrecioCOP(t),url=(t.match(/https?:\/\/[^\s]+/)||[""])[0];
+  if(!area&&!precio){msg.style.color="#e07a5f";msg.textContent="No reconocí precio ni área. Asegúrate de pegar el texto con el valor ($) y el tamaño (m²/ha/cuadras).";return;}
+  addTComp();const i=tcN-1;
+  const dEl=document.getElementById("tc"+i+"d");if(dEl)dEl.value=url||("Aviso pegado "+new Date().toLocaleDateString("es-CO"));
+  if(area){const a=document.getElementById("tc"+i+"a");if(a)a.value=area;}
+  if(precio){const p=document.getElementById("tc"+i+"p");if(p)p.value=precio;}
+  calcTComp();
+  msg.style.color="var(--muted)";msg.textContent=`✓ ${area?area.toLocaleString("es-CO")+" m²":"área?"} · ${precio?fmtP(precio):"precio?"}${(!area||!precio)?" — completa lo que falte a mano":""}`;
+  document.getElementById("tcPegar").value="";}
+const VEREDAS_QUINDIO={"Buenavista":["Río Verde","Sardinero","Los Balsos","Palonegro","La Cabaña","La Granja","La Mina","Las Gurrias","Juanes","Sauces","El Placer","La Picota"]};
+function sectoresPorMunicipio(){const sjs=document.getElementById("sjSector");if(!sjs)return;
+  const mun=(document.getElementById("sjCiudad")||{}).value||"";const mn=norm(mun);
+  if(!mun||/armenia|pereira|dosquebradas/.test(mn)){sjs.innerHTML=SEC.map(s=>`<option value="${s.id}">${s.nombre}</option>`).join("");return;}
+  const key=Object.keys(VEREDAS_QUINDIO).find(k=>norm(k)===mn);const ver=key?VEREDAS_QUINDIO[key]:[];
+  sjs.innerHTML=(ver.length?ver.map(v=>`<option value="${v}">${v}</option>`).join(""):'<option value="">(vereda no listada — escríbela en Dirección o usa 📍 Ubicar)</option>')+'<option value="">Otra / no listada</option>';}
 // ===== PLANTACIONES / cultivos permanentes (Res.620 Art.2 y 31 · VPN de vida útil restante) =====
 // Defaults reales (Colombia/Quindío 2024-26): dens=plantas/ha · vida=años útil prod · entrada=años a producir · renta=utilidad neta $/ha/año · estab=costo establecimiento $/ha
 const CULTIVOS_REF={
