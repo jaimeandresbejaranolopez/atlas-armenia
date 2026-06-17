@@ -1911,7 +1911,7 @@ function analisisPremium(id){
   const cerca=oLat?inv.map(x=>({x,dist:distM(x.lat,x.lng,oLat,oLng)})).filter(y=>y.dist<=R):[];
   const ventas=cerca.filter(y=>{const v=parseFloat(y.x.valor||y.x.precio);return (y.x.operacion!=="Renta"&&y.x.op!=="Arriendo")&&v>0;});
   const rentas=cerca.filter(y=>y.x.canon||y.x.operacion==="Renta"||y.x.op==="Arriendo");
-  const vm2s=ventas.map(y=>vrM2De(y.x)).filter(v=>v>0);
+  const vm2s=ventas.map(y=>vrM2De(y.x)).filter(v=>v>=800000&&v<=15000000); // descarta outliers (lotes/rentas/errores)
   const prom=vm2s.length?vm2s.reduce((a,b)=>a+b,0)/vm2s.length:null;
   const min=vm2s.length?Math.min(...vm2s):null,max=vm2s.length?Math.max(...vm2s):null;
   // 2) transacciones reales registradas cercanas
