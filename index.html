@@ -1869,7 +1869,7 @@ function calcEspecialTotal(){const ter=num("vtTerreno")||0,con=num("vtConstr")||
   if(!total)return alert("Ingresa al menos el valor de la tierra, la infraestructura o las plantaciones.");
   const e=document.getElementById("especialRes");e.style.display="block";
   e.innerHTML=`VALOR TOTAL DEL PREDIO RURAL: ${fmtP(total)}<br><span style="font-size:10px;font-weight:400">Tierra ${fmtP(ter)} + Plantaciones ${fmtP(pl)} + Infraestructura ${fmtP(infra)}${mob?" + Mobiliario "+fmtP(mob):""}<br><i>Estructura Res.620/2008 IGAC: suelo (comparación del sector) + cultivos (VPN vida útil restante) + mejoras (reposición depreciada).</i></span><br>SON: ${numALetras(Math.round(total))} PESOS MCTE`;
-  window.__especialTotal={ter,con,mej,infra,mob,pl,total};}
+  window.__ruralCalc=null;window.__especialTotal={ter,con,mej,infra,mob,pl,total};}
 // Número a letras (es-CO)
 function numALetras(n){
   const U=["","UNO","DOS","TRES","CUATRO","CINCO","SEIS","SIETE","OCHO","NUEVE","DIEZ","ONCE","DOCE","TRECE","CATORCE","QUINCE","DIECISEIS","DIECISIETE","DIECIOCHO","DIECINUEVE","VEINTE"];
@@ -2211,8 +2211,9 @@ function genAvId(){return "AV-"+Date.now().toString(36).toUpperCase()+Math.floor
 function supaPushAvEstado(id){if(!supa||!AVAP[id])return;
   supa.from("atlas_avaluos").upsert({nombre:id,agente:AVAP[id].agente||supaAgente,data:AVAP[id],updated_at:new Date().toISOString()}).then(r=>{if(r.error)console.warn("supa avEstado:",r.error.message);});}
 function registrarAvaluo(s,out){
-  if(!lastCalc._id)lastCalc._id=genAvId();
-  const id=lastCalc._id, prev=AVAP[id]||{};
+  const H=lastCalc||(window.__ruralCalc=window.__ruralCalc||{});
+  if(!H._id)H._id=genAvId();
+  const id=H._id, prev=AVAP[id]||{};
   AVAP[id]=Object.assign({id,dir:s.dir||"—",sector:(secResolve(s.sector)||{}).nombre||"—",ciudad:s.ciudad||"Armenia",depto:s.depto||"Quindío",valor:out.vAdop,cv:out.cvPct,agente:supaAgente||"local",fecha:prev.fecha||new Date().toISOString()},
     prev.estado==="aprobado"?{estado:"aprobado",aprobado_por:prev.aprobado_por,aprobado_fecha:prev.aprobado_fecha,consecutivo:prev.consecutivo}:{estado:"pendiente"});
   saveAVAP();supaPushAvEstado(id);return AVAP[id];
