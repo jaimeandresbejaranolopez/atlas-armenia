@@ -1,0 +1,18 @@
+{
+  "name": "Atlas Inmobiliario — Century 21 DAB",
+  "short_name": "Atlas C21",
+  "description": "Inteligencia inmobiliaria, captación y avalúos certificados — Century 21 DAB, Armenia (Quindío).",
+  "lang": "es-CO",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#100f13",
+  "theme_color": "#100f13",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
