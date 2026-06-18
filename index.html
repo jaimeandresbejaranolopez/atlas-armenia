@@ -2106,7 +2106,11 @@ function avaluarDesde(id){const d=allItems().find(x=>x.id===id);if(!d)return;
 const LS_AV="c21dab_avaluos";let avSaved={};
 try{avSaved=JSON.parse(localStorage.getItem(LS_AV)||"{}");}catch(e){}
 function renderSavedAv(){document.getElementById("savedAv").innerHTML=Object.keys(avSaved).map(k=>`<span class="sv" onclick="cargarAvaluo('${k.replace(/'/g,"")}')">📄 ${k} <b class="adminonly" onclick="event.stopPropagation();borrarAvaluo('${k.replace(/'/g,"")}')" style="color:var(--red)">✕</b></span>`).join("")||"<span class='notice'>Sin avalúos guardados.</span>";}
-function guardarAvaluo(){if(!lastCalc)return alert("Primero calcula un avalúo.");
+function guardarAvaluo(){
+  if(!lastCalc&&window.__especialTotal&&window.__especialTotal.total){const s=getSujeto();const nombre=(s.dir||"Avalúo rural").slice(0,40)+" · "+new Date().toISOString().slice(0,10);
+    avSaved[nombre]={sujeto:{dir:s.dir,tipo:s.tipo,sector:s.sector,area:s.area,estrato:s.estrato,hab:s.hab,ban:s.ban,parq:s.parq,ubic:s.ubic,vet:s.vet,cons:s.cons,solic:s.solic,matr:s.matr,ciudad:s.ciudad,depto:s.depto},rural:window.__especialTotal,plantRows:window.__plantRows||[],tierraComp:window.__tierraComp||null,fotos:avFotos.slice(0,8),fecha:new Date().toISOString()};
+    try{localStorage.setItem(LS_AV,JSON.stringify(avSaved));}catch(e){}renderSavedAv();alert("Avalúo rural guardado ✓");return;}
+  if(!lastCalc)return alert("Primero calcula un avalúo.");
   const s=lastCalc.s;const nombre=(s.dir||"Avalúo").slice(0,40)+" · "+new Date().toISOString().slice(0,10);
   const compData=[];for(let i=0;i<nComps;i++){compData.push({desc:val("c"+i+"desc"),portal:val("c"+i+"portal"),url:val("c"+i+"url"),precio:val("c"+i+"precio"),area:val("c"+i+"area"),hab:val("c"+i+"hab"),ban:val("c"+i+"ban"),parq:val("c"+i+"parq"),ubic:val("c"+i+"ubic"),meta:compMeta[i]||null});}
   avSaved[nombre]={sujeto:{dir:val("sjDir"),tipo:val("sjTipo"),sector:val("sjSector"),area:val("sjArea"),estrato:val("sjEstrato"),hab:val("sjHab"),ban:val("sjBan"),parq:val("sjParq"),ubic:val("sjUbic"),vet:val("sjVet"),cons:val("sjCons"),solic:val("sjSolic"),matr:val("sjMatr")},comps:compData,fOver:lastCalc.fOver,adop:(document.getElementById("avAdop")||{}).value,just:(document.getElementById("avJust")||{}).value,out:lastCalc.out,fotos:avFotos.slice(0,8),fecha:new Date().toISOString()};
@@ -2233,7 +2237,55 @@ function renderAprobaciones(){const c=document.getElementById("apBody");if(!c)re
     <td>${e.estado!=="aprobado"?`<button class="btnGold" style="padding:3px 8px;font-size:10px" onclick="aprobarAvaluo('${e.id}')">✒ Aprobar y firmar</button> `:""}${e.estado!=="rechazado"?`<button style="padding:3px 8px;font-size:10px;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:5px;cursor:pointer" onclick="rechazarAvaluo('${e.id}')">Rechazar</button>`:""}</td></tr>`).join(""):`<tr><td colspan="9" class="notice">Aún no se ha generado ningún avalúo. Cada avalúo emitido aparece aquí para tu aprobación antes de salir firmado con tu registro ${PERITO.aval}.</td></tr>`;
 }
 
-function imprimirInforme(){if(!lastCalc||!lastCalc.out)return alert("Primero calcula un avalúo.");
+function informeRural(){
+  const E=window.__especialTotal; if(!E||!E.total)return alert("Primero haz el Σ del predio rural.");
+  const s=getSujeto();const sec=secResolve(s.sector);
+  const _fE=document.getElementById("sjFecha");
+  const hoy=(_fE&&_fE.value)?new Date(_fE.value+"T12:00:00").toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"}):new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
+  const reg=registrarAvaluo(s,{vAdop:E.total,cvPct:0});let aprobado=reg.estado==="aprobado";
+  if(!aprobado&&isAdmin()){
+    if(confirm("Avalúo RURAL con tu firma ("+PERITO.aval+").\nPredio: "+(s.dir||"—")+"\nValor total: "+fmtP(E.total)+"\n\n¿APROBAR Y FIRMAR ahora? (Cancelar = BORRADOR)")){aprobarAvaluo(reg.id);aprobado=AVAP[reg.id].estado==="aprobado";}
+  } else if(!aprobado){alert("Avalúo registrado y ENVIADO a aprobación. Se imprime como BORRADOR hasta aprobarlo en ✒ Aprobaciones.");}
+  const regf=AVAP[reg.id]||reg;
+  const oLat=okNum(s.lat)?s.lat:(sec&&okNum(sec.lat)?sec.lat:null),oLng=okNum(s.lng)?s.lng:(sec&&okNum(sec.lng)?sec.lng:null);
+  const mapaHTML=mapaUbicacionHTML(oLat,oLng);
+  const areaT=(window.__tierraComp&&window.__tierraComp.area)?window.__tierraComp.area:0;
+  const mb=`<div style="display:flex;align-items:center;gap:10px;border-bottom:3px solid #BEAF87;padding-bottom:6px;margin-bottom:10px"><div style="background:#BEAF87;color:#0a0e1a;font-weight:800;padding:6px 10px;border-radius:5px;font-size:12px;text-align:center;line-height:1.1">CENTURY 21<br>DAB</div><div style="flex:1"><div style="font-size:15px;font-weight:800;letter-spacing:.5px">INFORME DE AVALÚO COMERCIAL — PREDIO RURAL</div><div style="font-size:9px;color:#555">Carrera 14 A # 10 AN-62 Santa Mónica, Armenia · Cel 311 771 84 81 · WWW.CENTURY21DAB.COM</div></div><div style="font-size:9px;text-align:right;color:#555">Suelo + Cultivos + Mejoras<br>Res. 620/2008 IGAC</div></div>`;
+  document.getElementById("printArea").innerHTML=`
+  ${mb}
+  ${!aprobado?`<div style="border:2px dashed #b3261e;color:#b3261e;background:#fff4f3;padding:7px 10px;border-radius:5px;font-size:11px;font-weight:700;text-align:center;margin-bottom:10px">⚠ BORRADOR — PENDIENTE DE APROBACIÓN · SIN VALIDEZ SIN FIRMA</div>`:`<div style="border:1px solid #1a7f4b;color:#1a7f4b;background:#f1f9f3;padding:6px 10px;border-radius:5px;font-size:10px;text-align:center;margin-bottom:10px">✔ AVALÚO APROBADO Y FIRMADO${regf.consecutivo?` · Consecutivo ${regf.consecutivo}`:""} · ${regf.aprobado_fecha?new Date(regf.aprobado_fecha).toLocaleDateString("es-CO"):hoy}</div>`}
+  ${avFotos[0]?`<div style="text-align:center;margin-bottom:10px"><img src="${avFotos[0]}" style="max-width:62%;max-height:300px;border:1px solid #999;border-radius:4px"><div style="font-size:9px;color:#555">Predio objeto del avalúo — ${s.dir||""}</div></div>`:""}
+  <h2>1. Información básica del avalúo</h2>
+  <table><tr><th>Fecha de avalúo</th><td>${hoy}</td><th>Solicitante</th><td>${s.solic||"—"}</td></tr>
+  <tr><th>Consecutivo</th><td>${regf.consecutivo||"(asignado al aprobar)"}</td><th>Objeto</th><td>Estimación del valor comercial del predio rural.</td></tr>
+  <tr><th>Predio</th><td colspan="3">${s.dir||"—"}</td></tr>
+  <tr><th>Matrícula</th><td>${s.matr||"Por verificar"}</td><th>Propietario</th><td>${s.solic||"Por verificar"}</td></tr>
+  <tr><th>Municipio / Depto</th><td>${s.ciudad||"—"} / ${s.depto||"—"}</td><th>Vereda / sector</th><td>${(sec?sec.nombre:"")||s.sector||"—"}</td></tr>
+  <tr><th>Área de terreno</th><td>${areaT?areaT.toLocaleString("es-CO")+" m²":"—"}</td><th>Área construida</th><td>${s.area||"—"} m²</td></tr>
+  ${okNum(oLat)?`<tr><th>Coordenadas</th><td colspan="3">${oLat.toFixed(6)}, ${oLng.toFixed(6)} · <a href="https://www.google.com/maps?q=${oLat},${oLng}">ver en Google Maps</a></td></tr>`:""}</table>
+  ${mapaHTML?`<div style="text-align:center"><div style="font-size:11px;font-weight:700;margin-top:4px">Localización del predio (imagen satelital)</div>${mapaHTML}<div style="font-size:8px;color:#777">Imagen satelital © Esri, Maxar, Earthstar Geographics. Ubicación referencial del predio.</div></div>`:""}
+  <h2>2. Metodología (Res. 620/2008 IGAC)</h2>
+  <p style="font-size:10px;text-align:justify">El predio rural se valora por la suma de sus componentes: <b>suelo</b> por comparación de mercado de la zona homogénea (Art. 1); <b>cultivos permanentes</b> por valor presente de la renta neta de su vida útil restante (Art. 2 y 31); y <b>mejoras e infraestructura</b> por costo de reposición depreciado con las tablas de Fitto y Corvini (Art. 3). Marco: Ley 388/97 · Ley 1673/2013 · Res. 620/2008 IGAC.</p>
+  ${ruralReportHTML()}
+  ${avFotos.length>1?`<div class="pgbrk"></div>${mb}<h2>Registro fotográfico</h2><div style="display:flex;flex-wrap:wrap;gap:8px">${avFotos.map((f,i)=>`<div style="width:31%"><img src="${f}" style="width:100%;border:1px solid #999;border-radius:4px"><div style="font-size:8.5px;text-align:center;color:#555">Foto ${i+1}</div></div>`).join("")}</div>`:""}
+  <div class="pgbrk"></div>${mb}
+  <h2>Información formal del avaluador</h2>
+  <table style="width:100%"><tr><th style="width:34%">Perito avaluador</th><td>${PERITO.nombre}</td></tr>
+  <tr><th>Cédula</th><td>${PERITO.cedula}</td></tr>
+  <tr><th>Número de avaluador (RAA)</th><td><b>${PERITO.aval}</b></td></tr>
+  <tr><th>Entidad reconocida (ERA)</th><td>${PERITO.entidad} · NIT ${PERITO.nit}</td></tr>
+  <tr><th>Categorías</th><td>${PERITO.categorias}</td></tr>
+  <tr><th>Contacto</th><td>${PERITO.contacto}</td></tr></table>
+  <div style="margin-top:34px;width:60%">
+    ${aprobado?(avFirma?`<img src="${avFirma}" style="max-height:70px;display:block;margin-bottom:2px">`:`<div style="font-family:'Brush Script MT',cursive;font-size:26px;color:#1b3a6b;line-height:1;margin-bottom:2px">Jaime A. Bejarano L.</div>`):`<div style="height:48px;border:1px dashed #b3261e;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#b3261e;font-size:10px;margin-bottom:2px">PENDIENTE DE FIRMA — aprobar en ✒ Aprobaciones</div>`}
+    <div style="border-top:1px solid #000;padding-top:4px;font-size:10px"><b>${PERITO.nombre}</b><br>Perito Avaluador · ${PERITO.aval}<br>C.C. ${PERITO.cedula}${aprobado?`<br><span style="font-size:8.5px;color:#1a7f4b">Aprobado y firmado${regf.consecutivo?` · ${regf.consecutivo}`:""} · ${regf.aprobado_fecha?new Date(regf.aprobado_fecha).toLocaleDateString("es-CO"):hoy}</span>`:""}</div>
+  </div>
+  ${aprobado?`<div style="margin-top:14px;display:inline-block;border:2px solid #1b3a6b;color:#1b3a6b;border-radius:7px;padding:6px 12px;font-size:9px;text-align:center;transform:rotate(-4deg);opacity:.85"><b style="font-size:11px">CENTURY 21 DAB</b><br>PERITO AVALUADOR<br>${PERITO.aval}<br>RAA · ANAV</div>`:""}
+  <p style="font-size:9px;margin-top:12px;border-top:1px solid #ccc;padding-top:6px">Avalúo de predio rural por componentes (Res. 620/2008 IGAC). Requiere visita técnica, inventario del cultivo (conteo, edad, estado fitosanitario), verificación documental (matrícula, escritura, ficha catastral) y medición de construcciones/mejoras. <b>VIGENCIA: UN (1) AÑO.</b></p>
+  ${anexosReportHTML()}`;
+  setTimeout(()=>{try{window.print();}catch(e){}},800);
+}
+function imprimirInforme(){if((!lastCalc||!lastCalc.out)&&window.__especialTotal&&window.__especialTotal.total)return informeRural();if(!lastCalc||!lastCalc.out)return alert("Primero calcula un avalúo (o haz el Σ del predio rural).");
   const {s,comps,out}=lastCalc;const sec=secResolve(s.sector);const _fE=document.getElementById("sjFecha");const hoy=(_fE&&_fE.value)?new Date(_fE.value+"T12:00:00").toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"}):new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
   const just=(document.getElementById("avJust")||{}).value||"";
   // v6.2 · control del avaluador: todo avalúo se registra y debe aprobarse antes de salir firmado
