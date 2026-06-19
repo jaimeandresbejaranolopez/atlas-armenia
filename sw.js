@@ -1,5 +1,5 @@
 /* Atlas C21 — service worker (instalable + offline básico del cascarón) */
-const CACHE = 'atlas-c21-v1';
+const CACHE = 'atlas-c21-v2';
 const CORE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
